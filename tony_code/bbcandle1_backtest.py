@@ -149,7 +149,7 @@ if __name__ == "__main__":
     start = pd.to_datetime('2012-01-04').tz_localize('US/Eastern')
     end = pd.to_datetime('2019-12-30').tz_localize('US/Eastern')
 
-    base_data = pd.read_csv('2020-파이썬분석팀/zipline/result_file/066570_result.csv')
+    base_data = pd.read_csv('2020-파이썬분석팀/zipline/result_file/KS11_result.csv')
     base_data['Date'] = pd.to_datetime(base_data['Date'])
     base_data.set_index('Date', inplace=True)
 
@@ -167,18 +167,16 @@ if __name__ == "__main__":
                                     handle_data=handle_data_2,
                                     data=data)
 
-    # result.to_csv('2020-파이썬분석팀/zipline/result_file/066570_week_backtest_result.csv') # zipline결과를 파일로 저장
+    result.to_csv('2020-파이썬분석팀/zipline/result_file/KS11_backtest_result.csv') # zipline결과를 파일로 저장
 
-    # print(result.info)
-    # make_graph(result, base_data)
-    print(result)
+    make_graph(result, base_data)
 
-    fig = plt.figure(figsize=(10,10))
-    ax0 = fig.add_subplot(1,1,1)
+    # fig = plt.figure(figsize=(10,10))
+    # ax0 = fig.add_subplot(1,1,1)
 
-    ax0.plot(result.index, result.portfolio_value, color='y')   
-    ax0.plot(result.index[result.buy == True], result.portfolio_value[result.buy == True], '^', label= 'buy') # 메수 지점에 ^표시
+    # ax0.plot(result.index, result.portfolio_value, color='y')   
+    # ax0.plot(result.index[result.buy == True], result.portfolio_value[result.buy == True], '^', label= 'buy') # 메수 지점에 ^표시
     
-    plt.grid()
-    plt.show()
+    # plt.grid()
+    # plt.show()
 
