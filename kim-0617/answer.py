@@ -10,12 +10,11 @@ def answer(code,start,end,ws=21):
     df = fdr.DataReader(code, start, end)
     df = df.reset_index()
     df['sig'] = 'none'
-    slist = df.index[10:len(df) - 11]
+    slist = df.index[(ws-1)//2:len(df) - (ws-1)//2]
     for i in slist:
         val_list = []
         for k in range(i - (ws - 1) // 2, i + (ws - 1) // 2):
-            if (k == i):
-                continue
+           
             if (k > len(df)):
                 break
             val_list.append(df.iloc[k]['Close'])
