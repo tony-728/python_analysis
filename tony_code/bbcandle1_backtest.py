@@ -170,7 +170,6 @@ if __name__ == "__main__":
     result.to_csv('2020-파이썬분석팀/zipline/result_file/KS11_backtest_result.csv') # zipline결과를 파일로 저장
 
     make_graph(result, base_data)
-    # print(result)
 
     # fig = plt.figure(figsize=(10,10))
     # ax0 = fig.add_subplot(1,1,1)
