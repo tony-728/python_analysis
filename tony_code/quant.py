@@ -159,9 +159,9 @@ class Quant:
     파라미터: 주가 데이터프레임, 단기이평기간, 장기이평기간, 단기-장기 값의 이평의 이평기간
     기능: MACD 값을 가져오는 함수
     리턴: MACD 값을 저장한 데이터프레임    '''
-    def get_MACD(self, df, fastperiod=12, slowperiod=26, signalperiod=9):
-        macd, macd_signal, macd_hist = ta.MACD(df['close'],fastperiod, slowperiod, signalperiod)
-        macd_df = pd.DataFrame({'macd':macd, 'macd_sig':macd_signal, 'macd_hish':macd_hist})
+    def get_MACD(self, df, fast_period=12, slow_period=26, signal_period=9):
+        macd, macd_signal, macd_hist = ta.MACD(df['close'],fast_period, slow_period, signal_period)
+        macd_df = pd.DataFrame({'macd':macd, 'macd_sig':macd_signal, 'macd_hist':macd_hist})
 
         return macd_df
     '''
@@ -179,6 +179,7 @@ class Quant:
     파라미터: 볼린저 밴드 값과 거래 포인트가 추가된 데이터프레임
     기능: 볼린저 밴드 값과 거래 포인트가 추가된 데이터프레임을 그래프로 나타냄    '''
     def make_graph(self, df):       
+        df.reset_index(inplace=True)
         ''' 기능: 그래프의 x축 format을 맞춰주기위한 함수 '''
         def x_date(x, pos):
             try:
@@ -202,8 +203,8 @@ class Quant:
         ax0.plot(index, df.ubb, label = 'Upper limit')
         ax0.plot(index, df.mbb, label = 'center line')
         ax0.plot(index, df.lbb, label = 'Lower limit')   
-        ax0.plot(index[df.sell_check == True], df.ubb[df.sell_check == True], 'v', label= 'sell') # 매도 지점에 v표시
-        ax0.plot(index[df.buy_check == True], df.lbb[df.buy_check == True], '^', label= 'buy') # 메수 지점에 ^표시
+        ax0.plot(index[df.sell_point == True], df.ubb[df.sell_point == True], 'v', label= 'sell') # 매도 지점에 v표시
+        ax0.plot(index[df.buy_point == True], df.lbb[df.buy_point == True], '^', label= 'buy') # 메수 지점에 ^표시
         
         ax0.legend(loc='best')
         plt.xticks(rotation=45)
@@ -211,18 +212,12 @@ class Quant:
         plt.grid()
         plt.show()
     '''
-    로그: 2020.02.16 시작
-    수정이 필요할 거 같음......
+    로그: 2020.02.16 시작 2020.02.24 수정
     파라미터: 일봉주가 데이터프레임, 주봉주가 데이터프레임으로 구한 매수, 매도 시그널데이터프레임
     기능: 주봉주가 데이터프레임으로 구한 매수, 매도 시그널을 백테스팅을 위해 일봉데이터프레임 인덱스로 변환
     리턴: 일봉주가데이터프레임에 주봉주가데이터로 구한 매수, 매도 시그널이 추가된 데이터프레임    '''
     def merge_for_backtest(self, df_D, sell_point_df, buy_point_df, dtype='D'):    
-        if dtype == 'D': # 일봉 데이터끼리 합치기
-            sell_buy_point_df = pd.merge(sell_point_df, buy_point_df, how='outer')
-            df_D.reset_index(inplace=True)
-            df_D = pd.merge(df_D, sell_buy_point_df, how='outer')
-
-        elif dtype == 'W': # 일봉 데이터 인덱스에 주봉 매수매도 신호 합치기
+        if dtype == 'W': # 일봉 데이터 인덱스에 주봉 매수매도 신호 합치기
             sell_point_df['Date'] = pd.to_datetime(sell_point_df['Date'])
             buy_point_df['Date'] = pd.to_datetime(buy_point_df['Date'])
             
@@ -231,20 +226,20 @@ class Quant:
             df_D = pd.merge(df_D, buy_point_df, how='outer')
 
         return df_D
-
     '''
     로그: 2020.02.20 시작
     파라미터: 주가데이터와 모든 보조지표데이터프레임
     기능: 모든 보조지표들을 하나의 데이터프레임으로 합친다.
     리턴: 한 데이터프레임에 모든 주가데이터와 보조지표를 추가하여 리턴    '''
     def merge_all_df(self, *args):
-        result = pd.concat(args, axis=1)
+        result = pd.concat(args, axis='columns', join='outer')
+        # result.fillna(value=False, inplace=True)
 
         return result
 
 if __name__ == "__main__":  
     quant = Quant()  
-    df = quant.add_bband(code='KS11', startdate='2018-01-01', enddate='2019-01-01')
+    df = quant.add_bband(code='005930', startdate='2018-01-01', enddate='2019-01-01')
 
     candle = quant.check_candle(df=df)
     bbcross = quant.check_bbcross(df=df)
@@ -252,6 +247,6 @@ if __name__ == "__main__":
     macd = quant.get_MACD(df=df)
     stoch = quant.get_stochastic(df=df)
    
-    result = quant.merge_all_df(df, candle, bbcross, rsi, macd, stoch)
-    print(result)
+    # result = quant.merge_all_df(df, candle, bbcross, rsi, macd, stoch)
+    # print(result)
     # result.to_csv('2020-파이썬분석팀/quant_analysis/result_file/000660_result.csv')

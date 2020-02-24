@@ -1,20 +1,14 @@
 from quant import *
 '''
-로그: 2020.2.8시작, 2.20 수정
+로그: 2020.2.8시작, 2.24 수정
+파라미터: 볼린져밴드와 보조지표가 모두 추가된 데이터프레임, 과거를 볼 기간
 기능: 기본전략(볼린져 밴드)을 이용하여 매수, 매도 타이밍 체크
 리턴 매수, 매도 시점을 저장한 데이터프레임을 리턴
 '''
 def bbcandle_1(df, period=2): 
-    quant = Quant()
-    
-    # 양봉 음봉 상향 하향 모두 일괄적으로 하기때문에 새롭게 값을 받아야한다.
-    check_candle = quant.check_candle(df)
-    check_bbcross = quant.check_bbcross(df)
-
-    # df_sell = quant.check_candle(df) # 음봉인 캔들을 체크한 dataframe
-    # df_up_cross = quant.check_bbcross(df) # 상향돌파를 체크한 dataframe
-
-    sindex_list = check_candle[check_candle.down_candle == True].index # for문에 사용할 범위를 생성
+    df.reset_index(inplace=True)
+    # sell_check
+    sindex_list = df[df.down_candle == True].index # for문에 사용할 범위를 생성
 
     sell_point = {} # 매도 시점을 파악하기 위한 dict
 
@@ -29,11 +23,9 @@ def bbcandle_1(df, period=2):
                 continue
 
             for i in range(sindex_list[j] - period, sindex_list[j] + 1): # 정해진 기간내에서 상향돌파를 발생했는지 확인, 자신포함
-                if check_bbcross.loc[i, 'up_cross']: # 상향돌파한 경우
+                if df.loc[i, 'up_cross']: # 상향돌파한 경우
                     cross_signal = True # 매도 신호 발생
-                    cross_point = i  # 돌파한 시점의 인덱스
-                    # print('상향돌파한 인덱스', cross_point)                    
-
+                    cross_point = i  # 돌파한 시점의 인덱스      
                     ''' 현재 시점 바로 이전에 돌파가 발생한 경우에 시그널을 주게 되면 첫번째 음봉체크가 불분명해진다. 때문에 현재도 확인을 해야함'''
                     # 자기 자신에서 상향돌파가 발생
                     if sindex_list[j] - cross_point == 0: # 현재시점 캔들(자기자신)에서 돌파가 발생 & 과거에 같은 경우(음봉이면서 상향돌파)가 있는지 확인해야한다.
@@ -45,9 +37,8 @@ def bbcandle_1(df, period=2):
                             else:
                                 candle_signal = True
 
-                        # if not candle_signal: # 한 번이라도 False가 나오면 매도신호에 맞지 않는다.
-                        #     break
-
+                        if not candle_signal: # 한 번이라도 False가 나오면 매도신호에 맞지 않는다.
+                            break
                     else: # 돌파한 인덱스와 현재캔들 인덱스 사이에 음봉이 있는지 확인 
                         for k in range(cross_point, sindex_list[j]): 
                             if k in sindex_list: # 사이에 음봉이 있는지 확인
@@ -60,11 +51,9 @@ def bbcandle_1(df, period=2):
 
                         if not candle_signal: # 한 번이라도 False가 나오면(돌파시점과 현재시점사이에 한개에 음봉이라도 존재하는 경우) 매도신호에 맞지 않는다.
                             break
-                
-                # 음봉이면서 -> 하한돌파한경우 매수 신호로 체크한다. 
-
+                        
             if cross_signal and candle_signal:
-                print(j, str(df_in_func['Date'].iloc[sindex_list[j]].strftime("%Y-%m-%d")) + ' SELL')
+                # print(j, str(df_in_func['Date'].iloc[sindex_list[j]].strftime("%Y-%m-%d")) + ' SELL')
                 sell_point[df_in_func['Date'].iloc[sindex_list[j]]] = True # 매도 시점을 저장
                 cross_signal = False
                 candle_signal = False
@@ -75,10 +64,7 @@ def bbcandle_1(df, period=2):
         pass
 
     # check_buy
-    # df_buy = quant.check_candle(df, 'buy') # 양봉인 캔들을 체크한 dataframe
-    # df_down_cross = quant.check_bbcross(df, 'buy') # 하향돌파를 체크한 dataframe
-
-    bindex_list = check_candle[check_candle.up_candle == True].index # for문에 사용할 범위를 생성
+    bindex_list = df[df.up_candle == True].index # for문에 사용할 범위를 생성
 
     buy_point = {} # 매수 시점을 파악하기 위한 dict
 
@@ -91,7 +77,7 @@ def bbcandle_1(df, period=2):
                 continue
 
             for i in range(bindex_list[j] - period, bindex_list[j] + 1): # 정해진 기간내에서 하향돌파를 발생했는지 확인, 자신포함
-                if check_bbcross.loc[i, 'down_cross']: # 하향돌파한 경우
+                if df.loc[i, 'down_cross']: # 하향돌파한 경우
                     cross_signal = True # 매수 신호 발생
                     cross_point = i # 돌파한 시점의 인덱스
                     
@@ -105,24 +91,23 @@ def bbcandle_1(df, period=2):
                             else:
                                 candle_signal = True
 
-                        if not candle_signal: # 한 번이라도 False가 나오면 매도신호에 맞지 않는다.
+                        if not candle_signal: # 한 번이라도 False가 나오면 매수신호에 맞지 않는다.
                             break
 
                     else:
                         for k in range(cross_point, bindex_list[j]): # 돌파한 인덱스와 현재캔들 인덱스 사이에 양봉이 있는지 확인
                             if k in bindex_list: # 사이에 값이 양봉이 있는지 확인
                                 candle_signal = False
-                                break
-                                # print('사이에 양봉이 있습니다.')
+                                break # print('사이에 양봉이 있습니다.')                                
                             else:
                                 candle_signal = True
                                 # print('사이에 양봉이 없습니다.')
 
-                        if not candle_signal: # 한 번이라도 False가 나오면 매도신호에 맞지 않는다.
+                        if not candle_signal: # 한 번이라도 False가 나오면 매수신호에 맞지 않는다.
                             break
                     
             if cross_signal and candle_signal: # 돌파이후 현재 캔들이 첫번째 시그널캔들(양봉)인지를 확인
-                print(j, str(df_in_func['Date'].iloc[bindex_list[j]].strftime("%Y-%m-%d")) + " BUY")
+                # print(j, str(df_in_func['Date'].iloc[bindex_list[j]].strftime("%Y-%m-%d")) + " BUY")
                 buy_point[df_in_func['Date'].iloc[bindex_list[j]]] = True
                 cross_signal = False
                 candle_signal = False
@@ -133,14 +118,168 @@ def bbcandle_1(df, period=2):
         pass
     
     # 매수, 매도 시점을 저장한 딕셔너리를 dataframe으로 만듬
-    sell_point_df = pd.DataFrame(sell_point, index=[0])
-    buy_point_df = pd.DataFrame(buy_point, index=[0])
+    bbcandle_buy = pd.DataFrame(buy_point.items(), columns=['Date', 'bbcandle_buy'])
+    bbcandle_buy.set_index('Date', inplace=True)
 
-    # print(sell_point)
-    sell_point_df = sell_point_df.stack().reset_index().drop(['level_0'], axis='columns')
-    buy_point_df = buy_point_df.stack().reset_index().drop(['level_0'], axis='columns')
+    bbcandle_sell = pd.DataFrame(sell_point.items(), columns=['Date', 'bbcandle_sell'])
+    bbcandle_sell.set_index('Date', inplace=True)
 
-    sell_point_df.rename(columns = {'level_1': 'Date', 0: 'sell_check'}, inplace= True)
-    buy_point_df.rename(columns = {'level_1': 'Date', 0: 'buy_check'}, inplace= True)
+    result = pd.concat([bbcandle_buy, bbcandle_sell], axis='columns', join='outer')
+    result.fillna(value=False, inplace=True)
+    return result
 
-    return sell_point_df, buy_point_df # 매수, 매도 시점을 저장한 데이터프레임을 반환
+# RSI 지표를 활용한 매수매도 check
+'''
+로그: 2020.02.20 시작
+파라미터: RIS지표데이터프레임, RSI을 판단할 percentage
+기능: RIS 지표를 갖고 매수 매도 판단 시그널을 만든다.
+리턴: 데이터프레임에 매수매도 판단 시그널을 생성    '''
+def check_RSI(df, up_pct=70, donw_pct=30):
+    rsi_buy = df.rsi <= 30
+    rsi_buy_df = pd.DataFrame({'rsi_buy':rsi_buy})
+
+    rsi_sell = df.rsi >= 70
+    rsi_sell_df = pd.DataFrame({'rsi_sell':rsi_sell})
+
+    result = pd.concat([rsi_buy_df, rsi_sell_df], axis='columns')
+    return result
+'''
+로그: 2020.02.20 시작 2020.02.23 수정
+파라미터: MACD 주가데이터프레임
+기능: MACD 지표를 갖고 매수 매도 판단 시그널을 만든다.
+리턴: 데이터프레임에 매수매도 판단 시그널을 생성    '''
+def check_MACD(df):
+    df.reset_index(inplace=True) # 인덱스 비교를 
+    # MACD > 0 & MACD > MACD_sig -> buy
+    # MACD가 0 초과인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 골든크로스하는지 확인     
+    macd_ovre_zero = df.macd > 0 # macd가 0보다 큰 인덱스에 True를 체크한 series
+    macd_buy = {}
+    for i in macd_ovre_zero[macd_ovre_zero.values == True].index: # True인 인덱스(macd>0)만 골든크로스를 하는지 비교
+        if df.loc[i-1, 'macd_hist'] < 0 and df.loc[i, 'macd_hist'] > 0: # i 시점은 골든크로스가 발생, macd_hist = macd - macd_sig
+            # 조건을 만족하는 i의 datetime을 True로 저장
+            # print(df.loc[i, 'Date'])  # 조건이 맞는 datetime , 이제 이 날짜들로 데이터프레임을 만들어서 True로 값을 세팅하면 된다. 
+            macd_buy[df.loc[i, 'Date']] = True # 매수 신호
+    macd_buy_df = pd.DataFrame(macd_buy.items(), columns=['Date', 'macd_buy'])
+    macd_buy_df.set_index('Date', inplace=True)
+   
+    # MACD < 0 & MACD < MACD_sig -> sell
+    # MACD가 0 미만인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 데드크로스하는지 확인
+    macd_under_zero = df.macd < 0
+    macd_sell = {}
+    for i in macd_under_zero[macd_under_zero == True].index:
+        if df.loc[i-1, 'macd_hist'] < 0 and df.loc[i, 'macd_hist'] > 0:
+            # 조건을 만족하는 i의 datetime을 True로 저장
+            macd_sell[df.loc[i, 'Date']] = True # 매도신호
+    macd_sell_df = pd.DataFrame(macd_sell.items(), columns=['Date', 'macd_sell'])
+    macd_sell_df.set_index('Date', inplace=True)
+
+    result = pd.concat([macd_buy_df, macd_sell_df], axis='columns', join='outer')
+    result.fillna(value=False, inplace=True)
+    
+    return result
+
+'''
+로그: 2020.02.20 시작 2020.02.24 수정
+파라미터: stochastic 주가데이터와 stochastic 판단 percentage
+기능: stochastic 지표를 갖고 매수 매도 판단 시그널을 만든다.
+리턴: 데이터프레임에 매수매도 판단 시그널을 생성    '''
+def check_STOCH(df, up_pct=80, down_pct=20):
+    df.reset_index(inplace=True)
+    '''case 1: 
+        slow_K가 20 이하이면 과매도구간 slow_K가 20을 상향돌파하면 매수
+        slow_K가 80 이상이면 과매수구간 slow_K가 80을 하향돌파하면 매도 '''
+    stoch_under_down = df.slow_K <= down_pct
+    stoch_buy1 = {}
+    for i in stoch_under_down[stoch_under_down.values == True].index:
+        if df.loc[i+1, 'slow_K'] > down_pct:
+            # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'])
+            # print('상향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
+            stoch_buy1[df.loc[i+1, 'Date']] = True # 매수신호
+    stoch_buy1_df = pd.DataFrame(stoch_buy1.items(), columns=['Date', 'SK_up_cross'])
+    stoch_buy1_df.set_index('Date', inplace=True)
+
+    stoch_over_up = df.slow_K >= up_pct
+    stoch_sell1 = {}
+    for i in stoch_over_up[stoch_over_up.values == True].index:
+        if df.loc[i+1, 'slow_K'] < up_pct:
+            # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'])
+            # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
+            stoch_sell1[df.loc[i+1, 'Date']] = True # 매도신호
+    stoch_sell1_df = pd.DataFrame(stoch_sell1.items(), columns=['Date', 'SK_down_cross'])
+    stoch_sell1_df.set_index('Date', inplace=True)
+
+    '''case 2: 
+        slow_K <= 20이고 slow_K가 slow_D를 상향돌파 하면 매수
+        slow_K >= 80이고 slow_K가 slow_D를 하향돌파 하면서 매도 '''
+    stoch_buy2 = {}
+    for i in stoch_under_down[stoch_under_down.values == True].index:
+        if df.loc[i+1, 'slow_K'] > df.loc[i+1, 'slow_D']:
+            # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
+            # print('상향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
+            stoch_buy2[df.loc[i+1, 'Date']] = True
+    stoch_buy2_df = pd.DataFrame(stoch_buy2.items(), columns=['Date', 'SK_SD_up_cross'])
+    stoch_buy2_df.set_index('Date', inplace=True)
+
+    stoch_sell2 = {}
+    for i in stoch_over_up[stoch_over_up.values == True].index:
+        if df.loc[i+1, 'slow_K'] < df.loc[i+1, 'slow_D']:
+            # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
+            # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
+            stoch_sell2[df.loc[i+1, 'Date']] = True
+    stoch_sell2_df = pd.DataFrame(stoch_sell2.items(), columns=['Date', 'SK_SD_down_cross'])
+    stoch_sell2_df.set_index('Date', inplace=True)
+
+    result = pd.concat([stoch_buy1_df, stoch_sell1_df, stoch_buy2_df, stoch_sell2_df], axis='columns', join='outer')
+    result.fillna(value=False, inplace=True)
+
+    ''' case 1, 2의 결과가 좋지 않으면 case 3, 4번도 추가예정
+    case 3: 
+    df['close']는 저점을 갱신하면서 하락 slow_K는 전저점을 갱신하지 못한경우 -> 매수
+    df['close']는 고점을 갱신하면서 상승 slow_K는 전고점을 갱신하지 못한경우 -> 매도
+    case 4: 
+    slow_K >= 50 and slow_D >= 50 -> 매수
+    slow_K <= 50 and slow_D <= 50 -> 매도        '''
+    return result
+
+'''     
+로그: 2020.02.24 시작
+파라미터: 매수매도판단 시그널이 있는 데이터프레임, 어떤 보조지표를 사용할 것인지
+기능: bbcandle과 보조지표의 신호를 확인하여 최종 거래 신호를 발생시킨다.
+리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
+def make_trade_point(df, tech_indicator=None):
+    # 기본전략
+    if tech_indicator is None:
+        result = df.drop(columns = ['rsi_buy', 'rsi_sell', 'macd_buy', 'macd_sell', 'SK_up_cross', 
+                            'SK_down_cross', 'SK_SD_up_cross', 'SK_SD_down_cross'])
+        result.rename(columns = {'bbcandle_sell':'sell_point', 'bbcandle_buy':'buy_point'}, inplace=True)
+
+    # RSI 추가, 기존 bbcandle전략과 rsi 신호가 둘다 있는 지점에 거래포인트 생성
+    elif tech_indicator is 'rsi':
+        buy_point = {}
+        sell_point = {}
+        result = df.drop(columns = ['macd_buy', 'macd_sell', 'SK_up_cross', 
+                            'SK_down_cross', 'SK_SD_up_cross', 'SK_SD_down_cross'])
+        # 매수신호 bbcandle과 rsi_buy가 함께 있는 지점
+        bbcandle_buy_index = result[result.bbcandle_buy == True].index
+        for i in bbcandle_buy_index:
+            # print(result.loc[i, 'rsi_buy'])
+            if result.loc[i, 'rsi_buy']:
+                buy_point[i] = True
+        buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
+        buy_point_df.set_index('Date', inplace=True)
+        
+        # 매도신호 bbcandle과 ris_sell이 함꼐 있는 지점
+        bbcandle_sell_index = result[result.bbcandle_sell == True].index
+        for i in bbcandle_sell_index:
+            if result.loc[i, 'rsi_sell']:
+                sell_point[i] = True
+        sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
+        sell_point_df.set_index('Date', inplace=True)
+
+        result = pd.concat([buy_point_df, sell_point_df], axis='columns', join='outer')
+
+    # MACD 추가
+
+    # Stochastic 추가
+
+    return result
