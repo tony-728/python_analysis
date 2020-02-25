@@ -324,8 +324,7 @@ def make_trade_point(df, tech_indicator=None, indi_count=None):
 
         return result
     except UnboundLocalError:
-        print('indi_count는 1이상이여야 합니다.')
-        return
+        pass
 
     # 기본전략
     if not tech_indicator:
