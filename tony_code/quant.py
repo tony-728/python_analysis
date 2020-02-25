@@ -233,7 +233,7 @@ class Quant:
     리턴: 한 데이터프레임에 모든 주가데이터와 보조지표를 추가하여 리턴    '''
     def merge_all_df(self, *args):
         result = pd.concat(args, axis='columns', join='outer')
-        # result.fillna(value=False, inplace=True)
+        result.fillna(value=False, inplace=True)
 
         return result
 

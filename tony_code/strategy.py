@@ -167,7 +167,7 @@ def check_MACD(df):
     macd_under_zero = df.macd < 0
     macd_sell = {}
     for i in macd_under_zero[macd_under_zero == True].index:
-        if df.loc[i-1, 'macd_hist'] < 0 and df.loc[i, 'macd_hist'] > 0:
+        if df.loc[i-1, 'macd_hist'] > 0 and df.loc[i, 'macd_hist'] < 0:
             # 조건을 만족하는 i의 datetime을 True로 저장
             macd_sell[df.loc[i, 'Date']] = True # 매도신호
     macd_sell_df = pd.DataFrame(macd_sell.items(), columns=['Date', 'macd_sell'])
@@ -195,7 +195,7 @@ def check_STOCH(df, up_pct=80, down_pct=20):
             # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'])
             # print('상향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
             stoch_buy1[df.loc[i+1, 'Date']] = True # 매수신호
-    stoch_buy1_df = pd.DataFrame(stoch_buy1.items(), columns=['Date', 'SK_up_cross'])
+    stoch_buy1_df = pd.DataFrame(stoch_buy1.items(), columns=['Date', 'stoch_1_buy'])
     stoch_buy1_df.set_index('Date', inplace=True)
 
     stoch_over_up = df.slow_K >= up_pct
@@ -205,7 +205,7 @@ def check_STOCH(df, up_pct=80, down_pct=20):
             # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'])
             # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
             stoch_sell1[df.loc[i+1, 'Date']] = True # 매도신호
-    stoch_sell1_df = pd.DataFrame(stoch_sell1.items(), columns=['Date', 'SK_down_cross'])
+    stoch_sell1_df = pd.DataFrame(stoch_sell1.items(), columns=['Date', 'stoch_1_sell'])
     stoch_sell1_df.set_index('Date', inplace=True)
 
     '''case 2: 
@@ -217,7 +217,7 @@ def check_STOCH(df, up_pct=80, down_pct=20):
             # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
             # print('상향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
             stoch_buy2[df.loc[i+1, 'Date']] = True
-    stoch_buy2_df = pd.DataFrame(stoch_buy2.items(), columns=['Date', 'SK_SD_up_cross'])
+    stoch_buy2_df = pd.DataFrame(stoch_buy2.items(), columns=['Date', 'stoch_2_buy'])
     stoch_buy2_df.set_index('Date', inplace=True)
 
     stoch_sell2 = {}
@@ -226,7 +226,7 @@ def check_STOCH(df, up_pct=80, down_pct=20):
             # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
             # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
             stoch_sell2[df.loc[i+1, 'Date']] = True
-    stoch_sell2_df = pd.DataFrame(stoch_sell2.items(), columns=['Date', 'SK_SD_down_cross'])
+    stoch_sell2_df = pd.DataFrame(stoch_sell2.items(), columns=['Date', 'stoch_2_sell'])
     stoch_sell2_df.set_index('Date', inplace=True)
 
     result = pd.concat([stoch_buy1_df, stoch_sell1_df, stoch_buy2_df, stoch_sell2_df], axis='columns', join='outer')
@@ -243,43 +243,94 @@ def check_STOCH(df, up_pct=80, down_pct=20):
 
 '''     
 로그: 2020.02.24 시작
-파라미터: 매수매도판단 시그널이 있는 데이터프레임, 어떤 보조지표를 사용할 것인지
+파라미터: 매수매도판단 시그널이 있는 데이터프레임, 어떤 보조지표를 사용할 것인지 또는 몇개의 보조지표를 사용할 것인지
 기능: bbcandle과 보조지표의 신호를 확인하여 최종 거래 신호를 발생시킨다.
 리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
-def make_trade_point(df, tech_indicator=None):
-    # 기본전략
-    if tech_indicator is None:
-        result = df.drop(columns = ['rsi_buy', 'rsi_sell', 'macd_buy', 'macd_sell', 'SK_up_cross', 
-                            'SK_down_cross', 'SK_SD_up_cross', 'SK_SD_down_cross'])
-        result.rename(columns = {'bbcandle_sell':'sell_point', 'bbcandle_buy':'buy_point'}, inplace=True)
+def make_trade_point(df, tech_indicator=None, indi_count=None):
+    if tech_indicator: # 어떤 보조지표를 함께 확인할 것인지 정할 수 있다.
+        result = df[['bbcandle_buy', 'bbcandle_sell']]
+        for tech in tech_indicator: # 어떤 보조지표를 인자로 받아드렸는가에 따라 df 재생성
+            if 'rsi' in tech_indicator:
+                result[['rsi_buy','rsi_sell']] = df.loc[:,['rsi_buy','rsi_sell']]
+            if 'macd' in tech_indicator:
+                result[['macd_buy','macd_sell']] = df.loc[:,['macd_buy', 'macd_sell']]
+            if 'stoch_1' in tech_indicator:
+                result[['stoch_1_buy', 'stoch_1_sell']] = df.loc[:,['stoch_1_buy', 'stoch_1_sell']]
+            if 'stoch_2' in tech_indicator:
+                result[['stoch_2_buy', 'stoch_2_sell']] = df.loc[:,['stoch_2_buy', 'stoch_2_sell']]
 
-    # RSI 추가, 기존 bbcandle전략과 rsi 신호가 둘다 있는 지점에 거래포인트 생성
-    elif tech_indicator is 'rsi':
+        # print(result)
+        # return
+        # bbcandle과 보조지표가 동일한 지점에 거래포인트 생성
         buy_point = {}
         sell_point = {}
-        result = df.drop(columns = ['macd_buy', 'macd_sell', 'SK_up_cross', 
-                            'SK_down_cross', 'SK_SD_up_cross', 'SK_SD_down_cross'])
-        # 매수신호 bbcandle과 rsi_buy가 함께 있는 지점
+        # 매수신호: bbcandle과 rsi_buy가 함께 있는 지점
         bbcandle_buy_index = result[result.bbcandle_buy == True].index
-        for i in bbcandle_buy_index:
-            # print(result.loc[i, 'rsi_buy'])
-            if result.loc[i, 'rsi_buy']:
-                buy_point[i] = True
-        buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
-        buy_point_df.set_index('Date', inplace=True)
-        
-        # 매도신호 bbcandle과 ris_sell이 함꼐 있는 지점
+        for i in bbcandle_buy_index: # bbcandle_buy가 True
+            # print(i)
+            for col in result.loc[i,:].index: # bbcandle_buy가 True인 행의 컬럼
+                # print(i, col)
+                if 'buy' in col and result.loc[i, col]: # col에 buy가 있고 그 컬럼이 True이면 거래신호
+                    # print(i, col, result.loc[i, col], 'ok')
+                    buy_point[i] = True
+                elif 'buy' in col and not result.loc[i, col]:
+                    # print(i, col, result.loc[i, col], 'nok')
+                    buy_point[i] = False
+                    break
+
+        # 매도신호: bbcandle과 ris_sell이 함꼐 있는 지점
         bbcandle_sell_index = result[result.bbcandle_sell == True].index
         for i in bbcandle_sell_index:
-            if result.loc[i, 'rsi_sell']:
+            for col in result.loc[i,:].index:
+                if 'sell' in col and result.loc[i, col]:
+                    sell_point[i] = True
+                elif 'sell' in col and not result.loc[i, col]:
+                    sell_point[i] = False
+                    break
+
+    elif indi_count: # 몇 개에 보조지표를 확인할 것인지 정할 수 있다.
+        buy_point = {}
+        sell_point = {}
+        # 매수신호: bbcandle과 함께 볼 보조지표를 확인후 생성
+        bbcandle_buy_index = df[df.bbcandle_buy == True].index
+        for i in bbcandle_buy_index:
+            # print(i)
+            true_count = 0
+            for col in df.loc[i,:].index:
+                # print(df.loc[i,:])
+                if 'buy' in col and df.loc[i, col]:
+                    true_count = true_count+1
+                    # print(i, col, df.loc[i, col])
+            
+            if true_count-1 >= indi_count: # indi_count 이상의 보조지표를 확인한다.
+                buy_point[i] = True       
+
+        # 매도신호: bbcandle과 함께 볼 보조지표를 확인후 생성
+        bbcandle_sell_index = df[df.bbcandle_sell == True].index
+        for i in bbcandle_sell_index:
+            true_count = 0
+            for col in df.loc[i,:].index:
+                if 'sell' in col and df.loc[i, col]:
+                    true_count = true_count+1
+            
+            if true_count-1 >= indi_count:
                 sell_point[i] = True
+    try:
+        buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
+        buy_point_df.set_index('Date', inplace=True)
         sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
         sell_point_df.set_index('Date', inplace=True)
-
         result = pd.concat([buy_point_df, sell_point_df], axis='columns', join='outer')
 
-    # MACD 추가
+        return result
+    except UnboundLocalError:
+        print('indi_count는 1이상이여야 합니다.')
+        return
 
-    # Stochastic 추가
-
-    return result
+    # 기본전략
+    if not tech_indicator:
+        result = df.drop(columns = ['rsi_buy', 'rsi_sell', 'macd_buy', 'macd_sell', 'stoch_1_buy', 
+                            'stoch_1_sell', 'stoch_2_buy', 'stoch_2_sell'])
+        result.rename(columns = {'bbcandle_sell':'sell_point', 'bbcandle_buy':'buy_point'}, inplace=True)
+        
+        return result
