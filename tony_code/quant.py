@@ -88,10 +88,10 @@ class Quant:
     파라미터: 주가데이터프레임, 상승비율, 하락비율
     리턴: 해당 인덱스(date)가 음봉인지 양봉인지 체크한 데이터프레임    '''
     def check_candle(self, df, up_pct=1.5, down_pct=0.5):       
-        down_candle = df['open'] * (1 - down_pct * 0.01) > df['close'] # 시가기준 종가가 x% 하락한 음봉을 체크
+        down_candle = df['open'] * (1 - down_pct * 0.01) >= df['close'] # 시가기준 종가가 x% 하락한 음봉을 체크
         # df_sell = df_sell[df_sell.check == True] # 데이터프레임에 음봉인 경우만 남김
 
-        up_candle = df['open'] * (1 + up_pct * 0.01) < df['close'] # 시가기준 종가가 x% 상승한 양봉을 체크
+        up_candle = df['open'] * (1 + up_pct * 0.01) <= df['close'] # 시가기준 종가가 x% 상승한 양봉을 체크
         # df_buy = df_buy[df_buy.check == True] # 데이터프레임에 양봉 경우만 남김
 
         check_candle = pd.DataFrame({'up_candle':up_candle, 'down_candle':down_candle})
@@ -104,46 +104,17 @@ class Quant:
     파라미터: 주가데이터프레임
     리턴: 해당 인덱스(date)가 상향돌파인지 하향돌파인지 체크한 데이터프레임    '''
     def check_bbcross(self, df):
-        up_cross = df['ubb'] < df['high']
+        up_cross = df['ubb'] <= df['high']
         # df_up_cross.reset_index(inplace=True)
         
-        down_cross = df['lbb'] > df['low']
+        down_cross = df['lbb'] >= df['low']
         # df_down_cross.reset_index(inplace=True)
 
         check_bbcross = pd.DataFrame({'up_cross':up_cross, 'down_cross':down_cross})
     
         return check_bbcross
 
-    '''
-    로그: 2020.2.17 시작
-    수정: 리턴 값을 손절시점을 데이터프레임으로 한다.
-    파라미터: 매수 매도 포인트를 추가한 전체 데이터프레임, 손절 비율
-    기능: 매수와 매수 사이에 손절할 포인트가 있는지 확인하여 손절(매도)할 지점을 찾는다.    '''
-    def check_stop_loss(self, df, down_pct=5):
-        # 매수 신호의 인덱스, 매수와 매수 사이의 값들을 확인하면 된다.
-        buy_index = df[df['buy_check'] == True].index 
 
-        check_stop_loss = {} # stop_loss가 발생하는 시점을 저장하기 위한 딕셔너리
-
-        for i in range(len(buy_index)): # 매수신호가 있는 만큼만 for loop을 돈다.
-            try:
-                for j in range(buy_index[i] + 1, buy_index[i + 1]): # 두 매수 신호 사이에(매도부분은 확인할 필요가 없다.) 손절할 부분이 있는지 확인해야함
-                    # 사이 구간에 매수한 가격(close)와 j의 인덱스가 가리키는 close가격을 비교하여 sell_check를 만들면된다. 
-                    # print(df.loc[buy_index[i], 'close'] * (1 - down_pct * 0.01))
-                    # return 
-                    if df.loc[buy_index[i], 'close'] * (1 - down_pct * 0.01) > df.loc[j, 'close']:
-                        # df.loc[j, 'sell_check'] = True
-                        check_stop_loss[df.loc[j, 'Date']] = True
-            except IndexError:
-                pass
-
-        print('check stop_loss done')
-
-        check_stop_loss_df = pd.DataFrame(check_stop_loss, index=[0])
-        check_stop_loss_df = check_stop_loss_df.stack().reset_index().drop(['level_0'], axis='columns')
-        check_stop_loss_df.rename(columns= {'level_1': 'Date', 0: 'check_stop_loss'}, inplace=True)
-
-        return check_stop_loss_df
     """
     로그: 2020.2.20 시작
     파라미터: 주가 데이터프레임, RSI를 확인할 기간
@@ -231,9 +202,12 @@ class Quant:
     파라미터: 주가데이터와 모든 보조지표데이터프레임
     기능: 모든 보조지표들을 하나의 데이터프레임으로 합친다.
     리턴: 한 데이터프레임에 모든 주가데이터와 보조지표를 추가하여 리턴    '''
-    def merge_all_df(self, *args):
+    def merge_all_df(self, *args, false='on'):
         result = pd.concat(args, axis='columns', join='outer')
-        result.fillna(value=False, inplace=True)
+        if false == 'on':            
+            result.fillna(value=False, inplace=True)
+        elif false == 'off':
+            pass
 
         return result
 

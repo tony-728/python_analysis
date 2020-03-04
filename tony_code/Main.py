@@ -12,7 +12,7 @@ if __name__ == "__main__":
    
     tech_df = quant.merge_all_df(df, rsi, macd, stoch)    
     # # print(tech_df)
-    # tech_df.to_csv('2020-파이썬분석팀/zipline/result_file/KS11_tech_result.csv')
+    # tech_df.to_csv('2020-파이썬분석팀/zipline/result_file/000660_tech_result.csv')
 
     # # 기본전략 1 
     candle = quant.check_candle(df=df)
@@ -30,13 +30,18 @@ if __name__ == "__main__":
     stoch = check_STOCH(df=stoch)
 
     df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
-    # df_for_trade.to_csv('2020-파이썬분석팀/zipline/result_file/KS11_trade_result.csv')
-
+    # df_for_trade.to_csv('2020-파이썬분석팀/zipline/result_file/000660_trade_result(test).csv')
+    # print(df_for_trade)
     # df = quant.merge_for_backtest(df, sell_point_df_W, buy_point_df_W, dtype='W')
 
-    result = make_trade_point(df=df_for_trade, tech_indicator=['macd', 'rsi'])
-    # result = make_trade_point(df=df_for_trade, indi_count=1)
-    print(result)
-        
-    # result = quant.merge_all_df(result, df)
-    # quant.make_graph(result)
+    # result = make_trade_point(df=df_for_trade, tech_indicator=['macd'])
+    # print(result)
+    # result.to_csv('2020-파이썬분석팀/zipline/result_file/SK하이닉스/000660_macd_test(for_backtest).csv')
+    result = make_trade_point(df=df_for_trade, indi_count=2)
+    result = quant.merge_all_df(result, df, false='off')
+    # print(result)
+
+    result = check_stop_loss(df=result)
+    # print(result)
+    result.to_csv('2020-파이썬분석팀/zipline/result_file/코스피/for_backtest/KS11_for_backtest(ver.count-2+stoploss).csv')
+    quant.make_graph(result)

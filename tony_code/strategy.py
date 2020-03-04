@@ -144,39 +144,49 @@ def check_RSI(df, up_pct=70, donw_pct=30):
     result = pd.concat([rsi_buy_df, rsi_sell_df], axis='columns')
     return result
 '''
-로그: 2020.02.20 시작 2020.02.23 수정
+로그: 2020.02.20 시작 2020.03.03 수정
 파라미터: MACD 주가데이터프레임
-기능: MACD 지표를 갖고 매수 매도 판단 시그널을 만든다.
+기능: MACD 지표를 갖고 하락세인지만 판단하도록 한다. (이유: 다른 지표들에서 더 좋은 거래 신호를 생성하기 때문에 )
 리턴: 데이터프레임에 매수매도 판단 시그널을 생성    '''
 def check_MACD(df):
     df.reset_index(inplace=True) # 인덱스 비교를 
-    # MACD > 0 & MACD > MACD_sig -> buy
-    # MACD가 0 초과인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 골든크로스하는지 확인     
-    macd_ovre_zero = df.macd > 0 # macd가 0보다 큰 인덱스에 True를 체크한 series
-    macd_buy = {}
-    for i in macd_ovre_zero[macd_ovre_zero.values == True].index: # True인 인덱스(macd>0)만 골든크로스를 하는지 비교
-        if df.loc[i-1, 'macd_hist'] < 0 and df.loc[i, 'macd_hist'] > 0: # i 시점은 골든크로스가 발생, macd_hist = macd - macd_sig
-            # 조건을 만족하는 i의 datetime을 True로 저장
-            # print(df.loc[i, 'Date'])  # 조건이 맞는 datetime , 이제 이 날짜들로 데이터프레임을 만들어서 True로 값을 세팅하면 된다. 
-            macd_buy[df.loc[i, 'Date']] = True # 매수 신호
-    macd_buy_df = pd.DataFrame(macd_buy.items(), columns=['Date', 'macd_buy'])
-    macd_buy_df.set_index('Date', inplace=True)
+    # # MACD > 0 & MACD > MACD_sig -> buy
+    # # MACD가 0 초과인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 골든크로스하는지 확인     
+    # macd_ovre_zero = df.macd > 0 # macd가 0보다 큰 인덱스에 True를 체크한 series
+    # macd_buy = {}
+    # for i in macd_ovre_zero[macd_ovre_zero.values == True].index: # True인 인덱스(macd>0)만 골든크로스를 하는지 비교
+    #     if df.loc[i-1, 'macd_hist'] < 0 and df.loc[i, 'macd_hist'] > 0: # i 시점은 골든크로스가 발생, macd_hist = macd - macd_sig
+    #         # 조건을 만족하는 i의 datetime을 True로 저장
+    #         # print(df.loc[i, 'Date'])  # 조건이 맞는 datetime , 이제 이 날짜들로 데이터프레임을 만들어서 True로 값을 세팅하면 된다. 
+    #         macd_buy[df.loc[i, 'Date']] = True # 매수 신호
+    # macd_buy_df = pd.DataFrame(macd_buy.items(), columns=['Date', 'macd_buy'])
+    # macd_buy_df.set_index('Date', inplace=True)
    
-    # MACD < 0 & MACD < MACD_sig -> sell
-    # MACD가 0 미만인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 데드크로스하는지 확인
-    macd_under_zero = df.macd < 0
-    macd_sell = {}
-    for i in macd_under_zero[macd_under_zero == True].index:
-        if df.loc[i-1, 'macd_hist'] > 0 and df.loc[i, 'macd_hist'] < 0:
-            # 조건을 만족하는 i의 datetime을 True로 저장
-            macd_sell[df.loc[i, 'Date']] = True # 매도신호
-    macd_sell_df = pd.DataFrame(macd_sell.items(), columns=['Date', 'macd_sell'])
-    macd_sell_df.set_index('Date', inplace=True)
+    # # MACD < 0 & MACD < MACD_sig -> sell
+    # # MACD가 0 미만인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 데드크로스하는지 확인
+    # macd_under_zero = df.macd < 0
+    # macd_sell = {}
+    # for i in macd_under_zero[macd_under_zero == True].index:
+    #     if df.loc[i-1, 'macd_hist'] > 0 and df.loc[i, 'macd_hist'] < 0:
+    #         # 조건을 만족하는 i의 datetime을 True로 저장
+    #         macd_sell[df.loc[i, 'Date']] = True # 매도신호
+    # macd_sell_df = pd.DataFrame(macd_sell.items(), columns=['Date', 'macd_sell'])
+    # macd_sell_df.set_index('Date', inplace=True)
 
-    result = pd.concat([macd_buy_df, macd_sell_df], axis='columns', join='outer')
-    result.fillna(value=False, inplace=True)
-    
-    return result
+    # result = pd.concat([macd_buy_df, macd_sell_df], axis='columns', join='outer')
+    # result.fillna(value=False, inplace=True)
+
+    # macd < 0일땐 하락세인 것으로 예측하고 어떠한 거래를 하지 않도록 한다.
+    macd_under_zero = df.macd< 0
+    down_trend = {}
+    for i in macd_under_zero[macd_under_zero == True].index:
+        down_trend[df.loc[i,'Date']] = True
+    down_trend_df = pd.DataFrame(down_trend.items(), columns=['Date', 'macd_DT'])
+    down_trend_df.set_index('Date', inplace=True)
+
+    return down_trend_df
+
+
 
 '''
 로그: 2020.02.20 시작 2020.02.24 수정
@@ -240,7 +250,72 @@ def check_STOCH(df, up_pct=80, down_pct=20):
     slow_K >= 50 and slow_D >= 50 -> 매수
     slow_K <= 50 and slow_D <= 50 -> 매도        '''
     return result
+'''
+로그: 2020.2.17 시작
+수정: 리턴 값을 손절시점을 데이터프레임으로 한다.
+파라미터: 매수 매도 포인트를 추가한 전체 데이터프레임, 손절 비율
+기능: 매수와 매수 사이에 손절할 포인트가 있는지 확인하여 손절(매도)할 지점을 찾는다.    '''
+def check_stop_loss(df, down_pct=5):
+    df_func = df.reset_index()
+    # 매수 신호의 인덱스, 매수와 매수 사이의 값들을 확인하면 된다.
+    buy_index = df_func[df_func.loc[:,'buy_point'] == True].index 
 
+    check_stop_loss = {} # stop_loss가 발생하는 시점을 저장하기 위한 딕셔너리
+
+    for i in range(len(buy_index)): # 매수신호가 있는 만큼만 for loop을 돈다.
+        try:
+            for j in range(buy_index[i] + 1, buy_index[i + 1]): # 두 매수 신호 사이에(매도부분은 확인할 필요가 없다.) 손절할 부분이 있는지 확인해야함
+                # 사이 구간에 매수한 가격(close)와 j의 인덱스가 가리키는 close가격을 비교하여 sell_check를 만들면된다. 
+                # print(df.loc[buy_index[i], 'close'] * (1 - down_pct * 0.01))
+                # return 
+                if df_func.loc[buy_index[i], 'close'] * (1 - down_pct * 0.01) > df_func.loc[j, 'close']:
+                    df.iloc[j, 1] = True
+                    check_stop_loss[df_func.loc[j, 'Date']] = True
+        except IndexError:
+            pass
+
+    print('check stop_loss done')
+
+    check_stop_loss_df = pd.DataFrame(check_stop_loss.items(), columns=['Date', 'check_stop_loss'])
+    check_stop_loss_df.set_index('Date', inplace=True)
+
+    result = pd.concat([df, check_stop_loss_df], axis='columns', join='outer')
+    return result
+
+'''
+로그: 2020.03.03 시작
+파라미터: macd지표로 확인한 거래포인트가 추가된 매수매도판단 시그널이 있는 데이터프레임
+기능: macd지표를 사용하여 거래신호를 생성
+리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
+def make_trade_point_macd(df):
+    buy_point = {}
+    sell_point = {}
+
+    buy_index = df[df.bbcandle_buy == True].index
+    for i in buy_index:
+        if df.loc[i,'bbcandle_buy'] and not df.loc[i, 'macd_DT']: # bb매수신호 하락세 아님
+            buy_point[i] = True
+        elif df.loc[i,'bbcandle_buy'] and df.loc[i, 'macd_DT']: # bb매수신호 하락세
+            buy_point[i] = False
+
+    sell_index = df[df.bbcandle_sell == True].index
+    for i in sell_index:
+        if df.loc[i, 'bbcandle_sell'] and not df.loc[i, 'macd_DT']:
+            sell_point[i] = True
+        elif df.loc[i, 'bbcandle_sell'] and df.loc[i, 'macd_DT']:
+            sell_point[i] = False
+
+    try:
+        buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
+        buy_point_df.set_index('Date', inplace=True)
+        sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
+        sell_point_df.set_index('Date', inplace=True)
+        result = pd.concat([buy_point_df, sell_point_df, df.loc[:, 'bbcandle_buy']], axis='columns', join='outer')
+        result.fillna(value=False, inplace=True); result.drop(columns=['bbcandle_buy'], inplace=True)
+    except UnboundLocalError:
+        pass
+    
+    return result
 '''     
 로그: 2020.02.24 시작
 파라미터: 매수매도판단 시그널이 있는 데이터프레임, 어떤 보조지표를 사용할 것인지 또는 몇개의 보조지표를 사용할 것인지
@@ -253,14 +328,16 @@ def make_trade_point(df, tech_indicator=None, indi_count=None):
             if 'rsi' in tech_indicator:
                 result[['rsi_buy','rsi_sell']] = df.loc[:,['rsi_buy','rsi_sell']]
             if 'macd' in tech_indicator:
-                result[['macd_buy','macd_sell']] = df.loc[:,['macd_buy', 'macd_sell']]
+                result['macd_DT'] = df.loc[:,'macd_DT']
+                result = make_trade_point_macd(result)
+                return result
             if 'stoch_1' in tech_indicator:
                 result[['stoch_1_buy', 'stoch_1_sell']] = df.loc[:,['stoch_1_buy', 'stoch_1_sell']]
             if 'stoch_2' in tech_indicator:
                 result[['stoch_2_buy', 'stoch_2_sell']] = df.loc[:,['stoch_2_buy', 'stoch_2_sell']]
-
         # print(result)
-        # return
+        # return result
+
         # bbcandle과 보조지표가 동일한 지점에 거래포인트 생성
         buy_point = {}
         sell_point = {}
@@ -320,15 +397,15 @@ def make_trade_point(df, tech_indicator=None, indi_count=None):
         buy_point_df.set_index('Date', inplace=True)
         sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
         sell_point_df.set_index('Date', inplace=True)
-        result = pd.concat([buy_point_df, sell_point_df], axis='columns', join='outer')
-
-        return result
+        result = pd.concat([buy_point_df, sell_point_df, df.loc[:, 'bbcandle_buy']], axis='columns', join='outer')
+        result.fillna(value=False, inplace=True); result.drop(columns=['bbcandle_buy'], inplace=True)
+        return result   
     except UnboundLocalError:
         pass
 
     # 기본전략
     if not tech_indicator:
-        result = df.drop(columns = ['rsi_buy', 'rsi_sell', 'macd_buy', 'macd_sell', 'stoch_1_buy', 
+        result = df.drop(columns = ['rsi_buy', 'rsi_sell', 'macd_DT', 'stoch_1_buy', 
                             'stoch_1_sell', 'stoch_2_buy', 'stoch_2_sell'])
         result.rename(columns = {'bbcandle_sell':'sell_point', 'bbcandle_buy':'buy_point'}, inplace=True)
         
