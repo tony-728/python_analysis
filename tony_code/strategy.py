@@ -11,7 +11,6 @@ def bbcandle_1(df, period=2):
     sindex_list = df[df.down_candle == True].index # for문에 사용할 범위를 생성
 
     sell_point = {} # 매도 시점을 파악하기 위한 dict
-
     df_in_func = df.reset_index() # 슬라이싱을 하기위해 date인덱스를 컬럼으로 변경
 
     cross_signal = False # 돌파가 발생했을 때 체크하는 시그널
@@ -67,7 +66,6 @@ def bbcandle_1(df, period=2):
     bindex_list = df[df.up_candle == True].index # for문에 사용할 범위를 생성
 
     buy_point = {} # 매수 시점을 파악하기 위한 dict
-
     cross_signal = False # 돌파가 발생했을 때 체크하는 시그널
     candle_signal = False # 돌파이후 현재값이 첫번째 시그널 캔들인지 체크하는 시그널
 
@@ -127,8 +125,6 @@ def bbcandle_1(df, period=2):
     result = pd.concat([bbcandle_buy, bbcandle_sell], axis='columns', join='outer')
     result.fillna(value=False, inplace=True)
     return result
-
-# RSI 지표를 활용한 매수매도 check
 '''
 로그: 2020.02.20 시작
 파라미터: RIS지표데이터프레임, RSI을 판단할 percentage
@@ -280,41 +276,6 @@ def check_stop_loss(df, down_pct=5):
 
     result = pd.concat([df, check_stop_loss_df], axis='columns', join='outer')
     return result
-
-'''
-로그: 2020.03.03 시작
-파라미터: macd지표로 확인한 거래포인트가 추가된 매수매도판단 시그널이 있는 데이터프레임
-기능: macd지표를 사용하여 거래신호를 생성 macd<0일땐 하락세로 판단하여 어떠한 거래신호도 발생시키지 않는다.
-리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
-def make_trade_point_macd(df):
-    buy_point = {}
-    sell_point = {}
-
-    buy_index = df[df.bbcandle_buy == True].index
-    for i in buy_index:
-        if df.loc[i,'bbcandle_buy'] and not df.loc[i, 'macd_DT']: # bb매수신호 하락세 아님
-            buy_point[i] = True
-        elif df.loc[i,'bbcandle_buy'] and df.loc[i, 'macd_DT']: # bb매수신호 하락세
-            buy_point[i] = False
-
-    sell_index = df[df.bbcandle_sell == True].index
-    for i in sell_index:
-        if df.loc[i, 'bbcandle_sell'] and not df.loc[i, 'macd_DT']:
-            sell_point[i] = True
-        elif df.loc[i, 'bbcandle_sell'] and df.loc[i, 'macd_DT']:
-            sell_point[i] = False
-
-    try:
-        buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
-        buy_point_df.set_index('Date', inplace=True)
-        sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
-        sell_point_df.set_index('Date', inplace=True)
-        result = pd.concat([buy_point_df, sell_point_df, df.loc[:, 'bbcandle_buy']], axis='columns', join='outer')
-        result.fillna(value=False, inplace=True); result.drop(columns=['bbcandle_buy'], inplace=True)
-    except UnboundLocalError:
-        pass
-    
-    return result
 '''     
 로그: 2020.02.24 시작 2020-03-12 수정
 파라미터: 매수매도판단 시그널이 있는 데이터프레임, 어떤 보조지표를 사용할 것인지 또는 몇개의 보조지표를 사용할 것인지
@@ -463,8 +424,8 @@ def tech_indicator_df(df, tech_indicator):
 파라미터: 주식코드리스트, 가져올 기준시간(일봉 or 주봉)
 기능: 오늘기준으로 주식들의 시그널을 확인한다.
 리턴: 각각의 주식에대한 시그널    '''
-def check_stock(stocklist, dtype='D'):
-    quant = Quant()
+def check_stock(stockmarket, dtype='D'):
+    stocklist = fdr.StockListing(stockmarket)
     code_data = {} # 각 주식코드의 시그널을 담기위한 dictionary
     if dtype == 'D':
         for no, stock in enumerate(stocklist.Symbol):
@@ -513,7 +474,27 @@ def check_stock(stocklist, dtype='D'):
             # print(stock, df_for_trade.iloc[-1])
             code_data[stock] = df_for_trade.iloc[-1]
 
-            time.sleep(8)
+            time.sleep(8) # 시간 텀을 두었지만 효과가 없었음...
 
     result = pd.DataFrame.from_dict(code_data)
-    return result.T
+    result = result.T
+    result.index.names = ['stockcode']
+    return result
+'''     
+로그: 2020.03.11 시작
+파라미터: 주식코드리스트, 전략, 기준시간(일봉 or 주봉)
+기능: 오늘기준으로 전략에 해당하는 주식 추출하기
+리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
+def find_stock(stockmarket, strategy=None, dtype='D'):
+    stocklist = fdr.StockListing(stockmarket)
+    df = check_stock(stocklist, dtype=dtype)
+    result = make_trade_point(df, strategy)
+
+    return result
+
+if __name__ == "__main__":
+    # df = check_stock(stockmarket='KOSPI')
+    # print(df)
+
+    df2 = find_stock(stockmarket='KOSPI', strategy=['rsi'])
+    print(df2)
