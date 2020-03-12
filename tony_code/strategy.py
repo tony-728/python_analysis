@@ -179,15 +179,12 @@ def check_MACD(df):
     # macd < 0일땐 하락세인 것으로 예측하고 어떠한 거래를 하지 않도록 한다.
     macd_under_zero = df.macd< 0
     down_trend = {}
-    for i in macd_under_zero[macd_under_zero == True].index:
+    for i in macd_under_zero[macd_under_zero == True].index: # macd<0인 날짜이므로 거래를 시키지 않는다.
         down_trend[df.loc[i,'Date']] = True
     down_trend_df = pd.DataFrame(down_trend.items(), columns=['Date', 'macd_DT'])
     down_trend_df.set_index('Date', inplace=True)
 
     return down_trend_df
-
-
-
 '''
 로그: 2020.02.20 시작 2020.02.24 수정
 파라미터: stochastic 주가데이터와 stochastic 판단 percentage
@@ -199,22 +196,23 @@ def check_STOCH(df, up_pct=80, down_pct=20):
         slow_K가 20 이하이면 과매도구간 slow_K가 20을 상향돌파하면 매수
         slow_K가 80 이상이면 과매수구간 slow_K가 80을 하향돌파하면 매도 '''
     stoch_under_down = df.slow_K <= down_pct
-    stoch_buy1 = {}
+    stoch_buy1 = {}  
     for i in stoch_under_down[stoch_under_down.values == True].index:
-        if df.loc[i+1, 'slow_K'] > down_pct:
+        if df.loc[i-1, 'slow_K'] < down_pct and df.loc[i, 'slow_K'] > down_pct:
             # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'])
             # print('상향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
-            stoch_buy1[df.loc[i+1, 'Date']] = True # 매수신호
+            stoch_buy1[df.loc[i, 'Date']] = True # 매수신호
+
     stoch_buy1_df = pd.DataFrame(stoch_buy1.items(), columns=['Date', 'stoch_1_buy'])
     stoch_buy1_df.set_index('Date', inplace=True)
 
     stoch_over_up = df.slow_K >= up_pct
     stoch_sell1 = {}
     for i in stoch_over_up[stoch_over_up.values == True].index:
-        if df.loc[i+1, 'slow_K'] < up_pct:
+        if df.loc[i-1, 'slow_K'] > up_pct and df.loc[i, 'slow_K'] < up_pct:
             # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'])
             # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
-            stoch_sell1[df.loc[i+1, 'Date']] = True # 매도신호
+            stoch_sell1[df.loc[i, 'Date']] = True # 매도신호
     stoch_sell1_df = pd.DataFrame(stoch_sell1.items(), columns=['Date', 'stoch_1_sell'])
     stoch_sell1_df.set_index('Date', inplace=True)
 
@@ -223,19 +221,20 @@ def check_STOCH(df, up_pct=80, down_pct=20):
         slow_K >= 80이고 slow_K가 slow_D를 하향돌파 하면서 매도 '''
     stoch_buy2 = {}
     for i in stoch_under_down[stoch_under_down.values == True].index:
-        if df.loc[i+1, 'slow_K'] > df.loc[i+1, 'slow_D']:
-            # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
-            # print('상향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
-            stoch_buy2[df.loc[i+1, 'Date']] = True
+        if df.loc[i-1, 'slow_K'] < df.loc[i-1, 'slow_D'] and df.loc[i, 'slow_K'] > df.loc[i, 'slow_D']:
+            # print('20아래', df.loc[i-1, 'Date'], df.loc[i-1, 'slow_K'], df.loc[i-1, 'slow_D'])
+            # print('상향돌파', df.loc[i, 'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
+            stoch_buy2[df.loc[i, 'Date']] = True
+
     stoch_buy2_df = pd.DataFrame(stoch_buy2.items(), columns=['Date', 'stoch_2_buy'])
     stoch_buy2_df.set_index('Date', inplace=True)
 
     stoch_sell2 = {}
     for i in stoch_over_up[stoch_over_up.values == True].index:
-        if df.loc[i+1, 'slow_K'] < df.loc[i+1, 'slow_D']:
+        if df.loc[i-1, 'slow_K'] > df.loc[i-1, 'slow_D'] and df.loc[i, 'slow_K'] < df.loc[i, 'slow_D']:
             # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
             # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
-            stoch_sell2[df.loc[i+1, 'Date']] = True
+            stoch_sell2[df.loc[i, 'Date']] = True
     stoch_sell2_df = pd.DataFrame(stoch_sell2.items(), columns=['Date', 'stoch_2_sell'])
     stoch_sell2_df.set_index('Date', inplace=True)
 
@@ -285,7 +284,7 @@ def check_stop_loss(df, down_pct=5):
 '''
 로그: 2020.03.03 시작
 파라미터: macd지표로 확인한 거래포인트가 추가된 매수매도판단 시그널이 있는 데이터프레임
-기능: macd지표를 사용하여 거래신호를 생성
+기능: macd지표를 사용하여 거래신호를 생성 macd<0일땐 하락세로 판단하여 어떠한 거래신호도 발생시키지 않는다.
 리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
 def make_trade_point_macd(df):
     buy_point = {}
@@ -317,54 +316,14 @@ def make_trade_point_macd(df):
     
     return result
 '''     
-로그: 2020.02.24 시작
+로그: 2020.02.24 시작 2020-03-12 수정
 파라미터: 매수매도판단 시그널이 있는 데이터프레임, 어떤 보조지표를 사용할 것인지 또는 몇개의 보조지표를 사용할 것인지
 기능: bbcandle과 보조지표의 신호를 확인하여 최종 거래 신호를 발생시킨다.
 리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
 def make_trade_point(df, tech_indicator=None, indi_count=None):
     if tech_indicator: # 어떤 보조지표를 함께 확인할 것인지 정할 수 있다.
-        result = df[['bbcandle_buy', 'bbcandle_sell']]
-        for tech in tech_indicator: # 어떤 보조지표를 인자로 받아드렸는가에 따라 df 재생성
-            if 'rsi' in tech_indicator:
-                result[['rsi_buy','rsi_sell']] = df.loc[:,['rsi_buy','rsi_sell']]
-            if 'macd' in tech_indicator:
-                result['macd_DT'] = df.loc[:,'macd_DT']
-                result = make_trade_point_macd(result)
-                return result
-            if 'stoch_1' in tech_indicator:
-                result[['stoch_1_buy', 'stoch_1_sell']] = df.loc[:,['stoch_1_buy', 'stoch_1_sell']]
-            if 'stoch_2' in tech_indicator:
-                result[['stoch_2_buy', 'stoch_2_sell']] = df.loc[:,['stoch_2_buy', 'stoch_2_sell']]
-        # print(result)
-        # return result
-
-        # bbcandle과 보조지표가 동일한 지점에 거래포인트 생성
-        buy_point = {}
-        sell_point = {}
-        # 매수신호: bbcandle과 rsi_buy가 함께 있는 지점
-        bbcandle_buy_index = result[result.bbcandle_buy == True].index
-        for i in bbcandle_buy_index: # bbcandle_buy가 True
-            # print(i)
-            for col in result.loc[i,:].index: # bbcandle_buy가 True인 행의 컬럼
-                # print(i, col)
-                if 'buy' in col and result.loc[i, col]: # col에 buy가 있고 그 컬럼이 True이면 거래신호
-                    # print(i, col, result.loc[i, col], 'ok')
-                    buy_point[i] = True
-                elif 'buy' in col and not result.loc[i, col]:
-                    # print(i, col, result.loc[i, col], 'nok')
-                    buy_point[i] = False
-                    break
-
-        # 매도신호: bbcandle과 ris_sell이 함꼐 있는 지점
-        bbcandle_sell_index = result[result.bbcandle_sell == True].index
-        for i in bbcandle_sell_index:
-            for col in result.loc[i,:].index:
-                if 'sell' in col and result.loc[i, col]:
-                    sell_point[i] = True
-                elif 'sell' in col and not result.loc[i, col]:
-                    sell_point[i] = False
-                    break
-
+        result = tech_indicator_df(df, tech_indicator)        
+        return result
     elif indi_count: # 몇 개에 보조지표를 확인할 것인지 정할 수 있다.
         buy_point = {}
         sell_point = {}
@@ -392,21 +351,169 @@ def make_trade_point(df, tech_indicator=None, indi_count=None):
             
             if true_count-1 >= indi_count:
                 sell_point[i] = True
-    try:
-        buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
-        buy_point_df.set_index('Date', inplace=True)
-        sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
-        sell_point_df.set_index('Date', inplace=True)
-        result = pd.concat([buy_point_df, sell_point_df, df.loc[:, 'bbcandle_buy']], axis='columns', join='outer')
-        result.fillna(value=False, inplace=True); result.drop(columns=['bbcandle_buy'], inplace=True)
-        return result   
-    except UnboundLocalError:
-        pass
 
-    # 기본전략
+        try:
+            buy_point_df = pd.DataFrame(buy_point.items(), columns=['Date', 'buy_point'])
+            buy_point_df.set_index('Date', inplace=True)
+            sell_point_df = pd.DataFrame(sell_point.items(), columns=['Date', 'sell_point'])
+            sell_point_df.set_index('Date', inplace=True)
+            result = pd.concat([buy_point_df, sell_point_df, df.loc[:, 'bbcandle_buy']], axis='columns', join='outer')
+            result.fillna(value=False, inplace=True); result.drop(columns=['bbcandle_buy'], inplace=True)
+            return result   
+        except UnboundLocalError:
+            pass
+
     if not tech_indicator:
         result = df.drop(columns = ['rsi_buy', 'rsi_sell', 'macd_DT', 'stoch_1_buy', 
                             'stoch_1_sell', 'stoch_2_buy', 'stoch_2_sell'])
         result.rename(columns = {'bbcandle_sell':'sell_point', 'bbcandle_buy':'buy_point'}, inplace=True)
         
         return result
+'''     
+로그: 2020-03-12 시작
+파라미터: 매수매도판단 시그널이 있는 데이터프레임, 사용할 보조지표리스트
+기능: bbcandle과 보조지표의 신호를 확인하여 최종 거래 신호를 발생시킨다.
+리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
+def tech_indicator_df(df, tech_indicator):
+    result = df[['bbcandle_buy', 'bbcandle_sell']]
+    # 보조지표가 1개일 때
+    if len(tech_indicator) == 1:
+        if 'rsi' in tech_indicator:
+            buy1 = 'rsi_buy'; sell1 = 'rsi_sell'
+        elif 'macd' in tech_indicator:
+            buy1 = 'macd_DT'; sell1 = 'macd_DT'
+            result.loc[:,'buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:, buy1] == False)
+            result.loc[:,'sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:, sell1] == False)
+
+            result.drop(columns=['bbcandle_buy', 'bbcandle_sell'], inplace=True)
+            # macd가 있으면 이 조건문안에서 처리한 후에 리턴해주어야한다. 
+            return result
+
+        elif 'stoch_1' in tech_indicator:
+            buy1 = 'stoch_1_buy'; sell1 = 'stoch_1_sell'
+        elif 'stoch_2' in tech_indicator:
+            buy1 = 'stoch_2_buy'; sell1 = 'stoch_2_sell'
+        
+        result['buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:, buy1] == True)
+        result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:, sell1] == True)
+    
+    # 보조지표가 2개일 떄
+    elif len(tech_indicator) == 2:
+        if 'rsi' in tech_indicator:
+            buy1 = 'rsi_buy'; sell1 = 'rsi_sell'            
+        if 'stoch_1' in tech_indicator:
+            if not buy1:
+                buy1 = 'stoch_1_buy'; sell1 = 'stoch_1_sell'
+            else:
+                buy2 = 'stoch_1_buy'; sell2 = 'stoch_1_sell'
+        if 'stoch_2' in tech_indicator:
+            if not buy1:
+                buy1 = 'stoch_2_buy'; sell1 = 'stoch_2_sell'
+            else:
+                buy2 = 'stoch_2_buy'; sell2 = 'stoch_2_sell'
+        if 'macd' in tech_indicator:
+            buy2 = 'macd_DT'; sell2 = 'macd_DT'
+            result['buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:,buy1] == True) & (df.loc[:,buy2] == False)
+            result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:,sell1] == True) & (df.loc[:,sell2] == False)
+            
+            result.drop(columns=['bbcandle_buy', 'bbcandle_sell'], inplace=True)
+            # macd가 있으면 이 조건문안에서 처리한 후에 리턴해주어야한다. 
+            return result
+
+        result['buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:,buy1] == True) & (df.loc[:,buy2] == True)
+        result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:,sell1] == True) & (df.loc[:,sell2] == True)
+    
+    # 보조지표가 3개일 때
+    elif len(tech_indicator) == 3:
+        if 'rsi' in tech_indicator:
+            buy1 = 'rsi_buy'; sell1 = 'rsi_sell'            
+        if 'stoch_1' in tech_indicator:
+            if not buy1:
+                buy1 = 'stoch_1_buy'; sell1 = 'stoch_1_sell'
+            else:
+                buy2 = 'stoch_1_buy'; sell2 = 'stoch_1_sell'
+        if 'stoch_2' in tech_indicator:
+            if not buy1:
+                buy1 = 'stoch_2_buy'; sell1 = 'stoch_2_sell'
+            elif buy1 and not buy2:
+                buy2 = 'stoch_2_buy'; sell2 = 'stoch_2_sell'
+            elif buy1 and buy2:
+                buy3 = 'stoch_2_buy'; sell3 = 'stoch_2_sell'
+        if 'macd' in tech_indicator:
+            buy3 = 'macd_DT'; sell3 = 'macd_DT'            
+            result['buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:,buy1] == True) & (df.loc[:,buy2] == True) & (df.loc[:,buy3] == False)
+            result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:,sell1] == True) & (df.loc[:,sell2] == True) & (df.loc[:,sell3] == False)
+            
+            result.drop(columns=['bbcandle_buy', 'bbcandle_sell'], inplace=True)
+            # macd가 있으면 이 조건문안에서 처리한 후에 리턴해주어야한다. 
+            return result
+
+        result['buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:,buy1] == True) & (df.loc[:,buy2] == True) & (df.loc[:,buy3] == True)
+        result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:,sell1] == True) & (df.loc[:,sell2] == True) & (df.loc[:,sell3] == True)
+    
+    # 보조지표가 4개일 때
+    elif len(tech_indicator) == 4:
+        result['buy_point'] = (df.loc[:,'bbcandle_buy'] == True) & (df.loc[:,'rsi_buy'] == True) & (df.loc[:,'stoch_1_buy'] == True) & (df.loc[:,'stoch_2_buy'] == True)  & (df['macd_DT'] == False)
+        result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:,'rsi_sell'] == True) & (df.loc[:,'stoch_1_sell'] == True) & (df.loc[:,'stoch_2_sell'] == True)  & (df['macd_DT'] == False)
+    
+    result.drop(columns=['bbcandle_buy', 'bbcandle_sell'], inplace=True)
+    return result
+'''     
+로그: 2020.03.09 시작 2020.03.11 수정
+파라미터: 주식코드리스트, 가져올 기준시간(일봉 or 주봉)
+기능: 오늘기준으로 주식들의 시그널을 확인한다.
+리턴: 각각의 주식에대한 시그널    '''
+def check_stock(stocklist, dtype='D'):
+    quant = Quant()
+    code_data = {} # 각 주식코드의 시그널을 담기위한 dictionary
+    if dtype == 'D':
+        for no, stock in enumerate(stocklist.Symbol):
+            df = quant.add_bband(code=stock, startdate='today')
+            
+            rsi = quant.get_RSI(df=df)
+            macd = quant.get_MACD(df=df)
+            stoch = quant.get_stochastic(df=df)  
+
+            # 기본전략 시그널
+            candle = quant.check_candle(df=df)
+            bbcross = quant.check_bbcross(df=df)
+            for_bbcandle = quant.merge_all_df(df, candle, bbcross)
+            bbcandle = bbcandle_1(df=for_bbcandle)
+
+            rsi = check_RSI(df=rsi)
+            macd = check_MACD(df=macd)    
+            stoch = check_STOCH(df=stoch)
+
+            df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
+            code_data[stock] = df_for_trade.iloc[-1]
+
+    elif dtype == 'W': # 한번 조회밖에 안됨...
+        for no, stock in enumerate(stocklist.Symbol):
+            print(stock)
+            df = quant.add_bband(code=stock, startdate='today', dtype='W')
+
+            print(df)
+            rsi = quant.get_RSI(df=df)
+            macd = quant.get_MACD(df=df)
+            stoch = quant.get_stochastic(df=df)  
+
+            # 기본전략 시그널
+            candle = quant.check_candle(df=df)
+            bbcross = quant.check_bbcross(df=df)
+            for_bbcandle = quant.merge_all_df(df, candle, bbcross)
+            bbcandle = bbcandle_1(df=for_bbcandle)
+
+            # 보조지표 시그널
+            rsi = check_RSI(df=rsi)
+            macd = check_MACD(df=macd)    
+            stoch = check_STOCH(df=stoch)
+
+            df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
+            # print(df_for_trade)
+            # print(stock, df_for_trade.iloc[-1])
+            code_data[stock] = df_for_trade.iloc[-1]
+
+            time.sleep(8)
+
+    result = pd.DataFrame.from_dict(code_data)
+    return result.T

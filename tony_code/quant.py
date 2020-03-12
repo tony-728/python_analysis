@@ -1,8 +1,9 @@
-import datetime
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import FinanceDataReader as fdr
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import mpl_finance
+# import mpl_finance
 import pandas as pd
 import talib as ta
 # 주봉데이터를 kiwoom AIP를 사용해서 가져오기 위해 임포트하는 모듈
@@ -20,8 +21,20 @@ class Quant:
     # 주요파라미터: code - 주가 코드, dtype - default(일봉), 주봉
     # 리턴: 볼린저 밴드가 추가된 주가 데이터프레임    """
     def add_bband(self, code, startdate, enddate=None, dtype='D', period=20, nbdevup=2, nbdevdn=2):
+        if startdate == 'today' and dtype == 'D':
+            startdate = datetime.now() + timedelta(days=-30)
+            startdate = startdate.strftime('%Y-%m-%d')
+            # print(startdate)
+            # return
+
+        elif startdate == 'today' and dtype == 'W':
+            startdate = datetime.now() + relativedelta(months=-5)
+            startdate = startdate.strftime('%Y-%m-%d')
+            # print(startdate)
+            # return
+
         if dtype =='W' and enddate is None:
-            enddate = datetime.datetime.now().strftime("%Y-%m-%d")
+            enddate = datetime.now().strftime("%Y-%m-%d")
             startdate = startdate.replace('-',"")
             enddate = enddate.replace('-',"")
             df = self.jubong_data(code, startdate, enddate).rename(columns=lambda col: col.lower())
@@ -34,6 +47,7 @@ class Quant:
         if dtype == 'D':
             df = fdr.DataReader(code, startdate, enddate).rename(columns=lambda col: col.lower())
 
+        # print(df)
         ubb, mbb, lbb = ta.BBANDS(df['close'], period, nbdevup, nbdevdn)
 
         df['ubb'] = ubb
@@ -58,7 +72,6 @@ class Quant:
         kiwoom.comm_rq_data("opt10082_req", "opt10082", 0, "0101")
 
         while kiwoom.remained_data == True:
-
             time.sleep(TR_REQ_TIME_INTERVAL)
             kiwoom.set_input_value("종목코드", code)
             kiwoom.set_input_value("기준일자", enddate)
@@ -74,7 +87,7 @@ class Quant:
 
         def y_m_d(x): # 날짜가 정수로 되어있으므로 y-m-d 형식에 맞춰 변경
             x = str(x)
-            return datetime.datetime.strptime(x, '%Y%m%d').date()    
+            return datetime.strptime(x, '%Y%m%d').date()    
         df['Date'] = list(map(y_m_d, df['Date']))
         
         df.set_index('Date', inplace=True)
@@ -113,8 +126,6 @@ class Quant:
         check_bbcross = pd.DataFrame({'up_cross':up_cross, 'down_cross':down_cross})
     
         return check_bbcross
-
-
     """
     로그: 2020.2.20 시작
     파라미터: 주가 데이터프레임, RSI를 확인할 기간
@@ -213,13 +224,19 @@ class Quant:
 
 if __name__ == "__main__":  
     quant = Quant()  
-    df = quant.add_bband(code='005930', startdate='2018-01-01', enddate='2019-01-01')
+    # df = quant.add_bband(code='000660', startdate='today')
+    df = quant.add_bband('001250','2019-10-01', dtype='W')
+    print(df)
 
-    candle = quant.check_candle(df=df)
-    bbcross = quant.check_bbcross(df=df)
-    rsi = quant.get_RSI(df=df)
-    macd = quant.get_MACD(df=df)
-    stoch = quant.get_stochastic(df=df)
+    df2 = quant.add_bband('000660', '2019-10-01', dtype='W')
+    print(df2)
+    # df = quant.add_bband(code='005930', startdate='2018-01-01', enddate='2019-01-01')
+
+    # candle = quant.check_candle(df=df)
+    # bbcross = quant.check_bbcross(df=df)
+    # rsi = quant.get_RSI(df=df)
+    # macd = quant.get_MACD(df=df)
+    # stoch = quant.get_stochastic(df=df)
    
     # result = quant.merge_all_df(df, candle, bbcross, rsi, macd, stoch)
     # print(result)
