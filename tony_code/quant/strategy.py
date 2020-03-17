@@ -486,8 +486,7 @@ def check_stock(stockmarket, dtype='D'):
 기능: 오늘기준으로 전략에 해당하는 주식 추출하기
 리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
 def find_stock(stockmarket, strategy=None, dtype='D'):
-    stocklist = fdr.StockListing(stockmarket)
-    df = check_stock(stocklist, dtype=dtype)
+    df = check_stock(stockmarket, dtype=dtype)
     result = make_trade_point(df, strategy)
 
     return result
@@ -495,6 +494,7 @@ def find_stock(stockmarket, strategy=None, dtype='D'):
 if __name__ == "__main__":
     # df = check_stock(stockmarket='KOSPI')
     # print(df)
+    quant = Quant()
 
     df2 = find_stock(stockmarket='KOSPI', strategy=['rsi'])
-    print(df2)
+    df2.to_csv('test.csv')

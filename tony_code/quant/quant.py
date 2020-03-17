@@ -3,15 +3,9 @@ from dateutil.relativedelta import relativedelta
 import FinanceDataReader as fdr
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-# import mpl_finance
+import mpl_finance
 import pandas as pd
 import talib as ta
-# 주봉데이터를 kiwoom AIP를 사용해서 가져오기 위해 임포트하는 모듈
-from Kiwoom import *
-import sys
-from PyQt5.QtWidgets import *
-from PyQt5.QAxContainer import *
-from PyQt5.QtCore import *
 import time
 
 class Quant:
@@ -56,44 +50,44 @@ class Quant:
 
         return df
     '''
-    로그: 2020.2.8시작, 2.14 수정
-    기능: 키움API를 사용하여 HTS에서 주봉데이터를 가져옴
+    로그: 2020.2.8시작, 2020.03.18 수정
+    기능: financedatereader에서 일봉데이터를 가져와서 주봉데이터에 맞게 변환
     리턴: 주봉 데이터프레임    '''
     def jubong_data(self, code, startdate, enddate):
-        app = QApplication(sys.argv)
-        kiwoom = Kiwoom()
-        kiwoom.comm_connect()
-        kiwoom.ohlcv = {'date': [], 'open': [], 'high': [], 'low': [], 'close': [], 'volume': []}
+        df = fdr.DataReader(code, startdate, enddate)
+        # 주봉은 월요일을 기준으로 하므로 월요일기준으로 일 -> 주로 변환
+        week_mon = df.resample('W-MON').last() 
+        week_mon.reset_index(inplace=True)
+        # 주봉데이터에 close는 금요일값을 기준으로 하므로 금요일기준으로 변환
+        week_fri = df.resample('W-FRI').last()
+        week_fri.reset_index(inplace=True)
+        # 각각의 주의 최대값과 최소값을 찾음
+        week_max = df.resample('W').max()
+        week_max.reset_index(inplace=True)
 
-        # opt10082 TR 요청
-        kiwoom.set_input_value("종목코드", code)
-        kiwoom.set_input_value("기준일자", enddate)
-        kiwoom.set_input_value("수정주가구분", 1)
-        kiwoom.comm_rq_data("opt10082_req", "opt10082", 0, "0101")
-
-        while kiwoom.remained_data == True:
-            time.sleep(TR_REQ_TIME_INTERVAL)
-            kiwoom.set_input_value("종목코드", code)
-            kiwoom.set_input_value("기준일자", enddate)
-            kiwoom.set_input_value("수정주가구분", 1)
-            kiwoom.comm_rq_data("opt10082_req", "opt10082", 2, "0101")
-
-        # 키움에서 가져온 주봉데이터로 데이터 프레임을 만듬
-        df = pd.DataFrame(kiwoom.ohlcv, columns=['open', 'high', 'low', 'close', 'volume'], index=kiwoom.ohlcv['date'])
+        week_min = df.resample('W').min()
+        week_min.reset_index(inplace=True)
+        # 주봉데이터프레임 생성
+        result = week_mon['Open'].to_frame()
+        result['High'] = week_max['High'].to_frame()
+        result['Low'] = week_min['Low'].to_frame()
+        result['Close'] = week_fri['Close'].to_frame()
+        result['Date'] = week_mon['Date'].to_frame()
+        result.set_index('Date', inplace=True)
+        # 현재가 있는 주는 open값을 제외한 값들은 계속 바뀌므로 금주를 기준으로 값을 채움
+        result.iloc[-1, 1] = df.iloc[-1]['High']
+        result.iloc[-1, 2] = df.iloc[-1]['Low']
+        result.iloc[-1, 3] = df.iloc[-1]['Close']
+        
+        # 2017-09-29 ~ 2017-10-09 까지의 데이터가 없기 때문에 하드코딩으로 주봉데이터에 맞게 값을 맞춰줌
+        # 2017-10-10 날짜에 주봉데이터를 생성함
+        df.drop(df.index[df.index == '2017-10-02'], axis=0, inplace=True)
+        df.loc['2017-10-09', 'Open'] = fdr.loc['2017-10-10', 'Open']
         df.reset_index(inplace=True)
-        df = df[df['index'] >= startdate] # 시작 날짜로 슬라이싱
-        
-        df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
-
-        def y_m_d(x): # 날짜가 정수로 되어있으므로 y-m-d 형식에 맞춰 변경
-            x = str(x)
-            return datetime.strptime(x, '%Y%m%d').date()    
-        df['Date'] = list(map(y_m_d, df['Date']))
-        
-        df.set_index('Date', inplace=True)
-        df=df[::-1]
-
-        return df
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.loc[404,'Date'] = datetime.strptime('2017-10-10', '%Y-%m-%d')
+        df.set_index('Date',inplace=True)
+        return result
     '''
     로그: 2020.2.8시작, 2.20 수정
     수정: type인자 삭제 - 매수 매도를 모두 구한후 이후 출력할 때 필터링하는 방식으로 변경
@@ -225,11 +219,9 @@ class Quant:
 if __name__ == "__main__":  
     quant = Quant()  
     # df = quant.add_bband(code='000660', startdate='today')
-    df = quant.add_bband('001250','2019-10-01', dtype='W')
-    print(df)
+    df = quant.add_bband('041960',startdate='2010-01-01', dtype='W')
+    df.to_csv('test_코미팜.csv')
 
-    df2 = quant.add_bband('000660', '2019-10-01', dtype='W')
-    print(df2)
     # df = quant.add_bband(code='005930', startdate='2018-01-01', enddate='2019-01-01')
 
     # candle = quant.check_candle(df=df)

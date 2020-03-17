@@ -1,4 +1,3 @@
-import FinanceDataReader as fdr
 import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -20,8 +19,8 @@ def initialize(context):
     
     # sym은 참조할 데이터에 대한 심볼을 저장하는데 사용된다.
     context.sym = symbol('close') 
-    context.sym1 = symbol('high') # sell_check
-    context.sym2 = symbol('low') # buy_check
+    context.sym1 = symbol('high') # buy_point
+    context.sym2 = symbol('low') # sell_point
 
     context.hold = False # 주식 보유 여부에 대한 정보를 저장하는 변수 hold 시뮬레이션 초기에는 주식을 가지고있지 않기 때문에 false
     set_commission(commission.PerDollar(cost=0.00165))
@@ -29,27 +28,21 @@ def initialize(context):
 # 백테스트 시뮬레이션 동안 거래일마다 호출되는 함수인 handle_data 
 # 함수의 인자로 context, data를 사용하는데 context는 TradingAlgorithm 클래스의 인스턴스이고 data는 BarData 클래스의 인스턴스이다.
 def handle_data(context, data):
-    context.i += 1
-    # bband에서 20일 이평선을 사용하기 때문에 시뮬레이션 시작일로부터 최소 20일이 지난 후부터 계산할 수 있다. 
-    # 따라서 context.i 값이 20보다 작을 때는 handle_data함수가 종료되도록 구현한다.
-    if context.i <20: 
-        return
-
     # 시뮬레이션 거래일 마다 매수 또는 매도 여부를 저장한 후 이를 record 함수를 사용해 시뮬레이션 결과에 추가
     buy = False
     sell = False
 
-    sell_check = data.current(context.sym1, 'price')
-    buy_check = data.current(context.sym2, 'price')
+    buy_point = data.current(context.sym1, 'price') 
+    sell_point = data.current(context.sym2, 'price')
 
     # print('sell_check:', sell_check)
     # print('buy_check:', buy_check)
 
-    if sell_check is True and context.hold == True:
+    if sell_point is True and context.hold == True:
         order_percent(context.sym, -0.96)
         context.hold = False
         sell = True
-    elif buy_check is True and context.hold == False:
+    elif buy_point is True and context.hold == False:
         order_percent(context.sym, 0.96)
         context.hold = True
         buy = True
@@ -58,12 +51,6 @@ def handle_data(context, data):
     record(close=data.current(context.sym, "price"), buy = buy, sell = sell)
 
 def handle_data_2(context, data):
-    context.i += 1
-    # bband에서 20일 이평선을 사용하기 때문에 시뮬레이션 시작일로부터 최소 20일이 지난 후부터 계산할 수 있다. 
-    # 따라서 context.i 값이 20보다 작을 때는 handle_data함수가 종료되도록 구현한다.
-    if context.i <20: 
-        return
-
     # 시뮬레이션 거래일 마다 매수 또는 매도 여부를 저장한 후 이를 record 함수를 사용해 시뮬레이션 결과에 추가
     buy = False
     sell = False
@@ -124,8 +111,8 @@ def make_graph(result, base_data, country = 'KR'):
     ax0.plot(index, base_data.ubb, label = 'Upper limit')
     ax0.plot(index, base_data.mbb, label = 'center line')
     ax0.plot(index, base_data.lbb, label = 'Lower limit')   
-    ax0.plot(index[base_data.buy_check == True], base_data.lbb[base_data.buy_check == True], '^', label= 'buy') # 메수 지점에 ^표시
-    ax0.plot(index[base_data.sell_check == True], base_data.ubb[base_data.sell_check == True], 'v', label= 'sell') # 매도 지점에 v표시    
+    ax0.plot(index[base_data.buy_point == True], base_data.lbb[base_data.buy_point == True], '^', label= 'buy') # 메수 지점에 ^표시
+    ax0.plot(index[base_data.sell_point == True], base_data.ubb[base_data.sell_point == True], 'v', label= 'sell') # 매도 지점에 v표시    
     
     # 수익률 & 매수매도 지점 그래프 생성
     # 수익률 그래프의 x축을 datetime형식으로 맞춰주기 위해 변경함    
@@ -146,28 +133,29 @@ def make_graph(result, base_data, country = 'KR'):
     plt.show()
 
 if __name__ == "__main__":
-    start = pd.to_datetime('2012-01-04').tz_localize('US/Eastern')
+    start = pd.to_datetime('2010-01-04').tz_localize('US/Eastern')
     end = pd.to_datetime('2019-12-30').tz_localize('US/Eastern')
 
-    base_data = pd.read_csv('2020-파이썬분석팀/zipline/result_file/KS11_result.csv')
+    base_data = pd.read_csv('C:/Users/ksang/Dropbox/SK하이닉스/for_backtest/000660_for_backtest(ver.macd_DT).csv')
     base_data['Date'] = pd.to_datetime(base_data['Date'])
     base_data.set_index('Date', inplace=True)
 
     base_data = base_data.tz_localize('UTC') # Datetime의 시간대를 설정함
     
-    data = base_data[['close', 'sell_check', 'buy_check']]
-    data.rename(columns={'sell_check':'high', 'buy_check': 'low'}, inplace=True)
-    # print(data)
+    data = base_data[['close', 'buy_point', 'sell_point']]
+    data.rename(columns={'buy_point':'high', 'sell_point': 'low'}, inplace=True)
+    # print(data[data.high == True])
+    # print(data[data.low == True])
 
     result = zipline.run_algorithm(start=start,
                                     end=end,
                                     initialize=initialize,
                                     trading_calendar= set_calendar('KR'),
                                     capital_base=100000000,
-                                    handle_data=handle_data_2,
+                                    handle_data=handle_data,
                                     data=data)
 
-    result.to_csv('2020-파이썬분석팀/zipline/result_file/KS11_backtest_result.csv') # zipline결과를 파일로 저장
+    # result.to_csv('2020-파이썬분석팀/zipline/result_file/코스피/backtest_result/KS11_backtest_result(ver.count-2+stoploss).csv') # zipline결과를 파일로 저장
 
     make_graph(result, base_data)
 
@@ -179,4 +167,3 @@ if __name__ == "__main__":
     
     # plt.grid()
     # plt.show()
-
