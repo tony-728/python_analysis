@@ -146,32 +146,6 @@ def check_RSI(df, up_pct=70, donw_pct=30):
 리턴: 데이터프레임에 매수매도 판단 시그널을 생성    '''
 def check_MACD(df):
     df.reset_index(inplace=True) # 인덱스 비교를 
-    # # MACD > 0 & MACD > MACD_sig -> buy
-    # # MACD가 0 초과인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 골든크로스하는지 확인     
-    # macd_ovre_zero = df.macd > 0 # macd가 0보다 큰 인덱스에 True를 체크한 series
-    # macd_buy = {}
-    # for i in macd_ovre_zero[macd_ovre_zero.values == True].index: # True인 인덱스(macd>0)만 골든크로스를 하는지 비교
-    #     if df.loc[i-1, 'macd_hist'] < 0 and df.loc[i, 'macd_hist'] > 0: # i 시점은 골든크로스가 발생, macd_hist = macd - macd_sig
-    #         # 조건을 만족하는 i의 datetime을 True로 저장
-    #         # print(df.loc[i, 'Date'])  # 조건이 맞는 datetime , 이제 이 날짜들로 데이터프레임을 만들어서 True로 값을 세팅하면 된다. 
-    #         macd_buy[df.loc[i, 'Date']] = True # 매수 신호
-    # macd_buy_df = pd.DataFrame(macd_buy.items(), columns=['Date', 'macd_buy'])
-    # macd_buy_df.set_index('Date', inplace=True)
-   
-    # # MACD < 0 & MACD < MACD_sig -> sell
-    # # MACD가 0 미만인 인덱스를 찾고 그 인덱스에 있는 MACD가 MACD_sig를 데드크로스하는지 확인
-    # macd_under_zero = df.macd < 0
-    # macd_sell = {}
-    # for i in macd_under_zero[macd_under_zero == True].index:
-    #     if df.loc[i-1, 'macd_hist'] > 0 and df.loc[i, 'macd_hist'] < 0:
-    #         # 조건을 만족하는 i의 datetime을 True로 저장
-    #         macd_sell[df.loc[i, 'Date']] = True # 매도신호
-    # macd_sell_df = pd.DataFrame(macd_sell.items(), columns=['Date', 'macd_sell'])
-    # macd_sell_df.set_index('Date', inplace=True)
-
-    # result = pd.concat([macd_buy_df, macd_sell_df], axis='columns', join='outer')
-    # result.fillna(value=False, inplace=True)
-
     # macd < 0일땐 하락세인 것으로 예측하고 어떠한 거래를 하지 않도록 한다.
     macd_under_zero = df.macd< 0
     down_trend = {}
@@ -418,67 +392,6 @@ def tech_indicator_df(df, tech_indicator):
         result['sell_point'] = (df.loc[:,'bbcandle_sell'] == True) & (df.loc[:,'rsi_sell'] == True) & (df.loc[:,'stoch_1_sell'] == True) & (df.loc[:,'stoch_2_sell'] == True)  & (df['macd_DT'] == False)
     
     result.drop(columns=['bbcandle_buy', 'bbcandle_sell'], inplace=True)
-    return result
-'''     
-로그: 2020.03.09 시작 2020.03.11 수정
-파라미터: 주식코드리스트, 가져올 기준시간(일봉 or 주봉)
-기능: 오늘기준으로 주식들의 시그널을 확인한다.
-리턴: 각각의 주식에대한 시그널    '''
-def check_stock(stockmarket, dtype='D'):
-    stocklist = fdr.StockListing(stockmarket)
-    code_data = {} # 각 주식코드의 시그널을 담기위한 dictionary
-    if dtype == 'D':
-        for no, stock in enumerate(stocklist.Symbol):
-            df = quant.add_bband(code=stock, startdate='today')
-            
-            rsi = quant.get_RSI(df=df)
-            macd = quant.get_MACD(df=df)
-            stoch = quant.get_stochastic(df=df)  
-
-            # 기본전략 시그널
-            candle = quant.check_candle(df=df)
-            bbcross = quant.check_bbcross(df=df)
-            for_bbcandle = quant.merge_all_df(df, candle, bbcross)
-            bbcandle = bbcandle_1(df=for_bbcandle)
-
-            rsi = check_RSI(df=rsi)
-            macd = check_MACD(df=macd)    
-            stoch = check_STOCH(df=stoch)
-
-            df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
-            code_data[stock] = df_for_trade.iloc[-1]
-
-    elif dtype == 'W': # 한번 조회밖에 안됨...
-        for no, stock in enumerate(stocklist.Symbol):
-            print(stock)
-            df = quant.add_bband(code=stock, startdate='today', dtype='W')
-
-            print(df)
-            rsi = quant.get_RSI(df=df)
-            macd = quant.get_MACD(df=df)
-            stoch = quant.get_stochastic(df=df)  
-
-            # 기본전략 시그널
-            candle = quant.check_candle(df=df)
-            bbcross = quant.check_bbcross(df=df)
-            for_bbcandle = quant.merge_all_df(df, candle, bbcross)
-            bbcandle = bbcandle_1(df=for_bbcandle)
-
-            # 보조지표 시그널
-            rsi = check_RSI(df=rsi)
-            macd = check_MACD(df=macd)    
-            stoch = check_STOCH(df=stoch)
-
-            df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
-            # print(df_for_trade)
-            # print(stock, df_for_trade.iloc[-1])
-            code_data[stock] = df_for_trade.iloc[-1]
-
-            time.sleep(8) # 시간 텀을 두었지만 효과가 없었음...
-
-    result = pd.DataFrame.from_dict(code_data)
-    result = result.T
-    result.index.names = ['stockcode']
     return result
 '''     
 로그: 2020.03.11 시작

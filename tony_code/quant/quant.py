@@ -215,7 +215,68 @@ class Quant:
             pass
 
         return result
+    '''     
+    로그: 2020.03.09 시작 2020.03.11 수정
+    파라미터: 주식코드리스트, 가져올 기준시간(일봉 or 주봉)
+    기능: 오늘기준으로 주식들의 시그널을 확인한다.
+    리턴: 각각의 주식에대한 시그널    '''
+    def check_stock(stockmarket, dtype='D'):
+        stocklist = fdr.StockListing(stockmarket)
+        code_data = {} # 각 주식코드의 시그널을 담기위한 dictionary
+        if dtype == 'D':
+            for no, stock in enumerate(stocklist.Symbol):
+                df = quant.add_bband(code=stock, startdate='today')
+                
+                rsi = quant.get_RSI(df=df)
+                macd = quant.get_MACD(df=df)
+                stoch = quant.get_stochastic(df=df)  
 
+                # 기본전략 시그널
+                candle = quant.check_candle(df=df)
+                bbcross = quant.check_bbcross(df=df)
+                for_bbcandle = quant.merge_all_df(df, candle, bbcross)
+                bbcandle = bbcandle_1(df=for_bbcandle)
+
+                rsi = check_RSI(df=rsi)
+                macd = check_MACD(df=macd)    
+                stoch = check_STOCH(df=stoch)
+
+                df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
+                code_data[stock] = df_for_trade.iloc[-1]
+
+        elif dtype == 'W': # 한번 조회밖에 안됨...
+            for no, stock in enumerate(stocklist.Symbol):
+                print(stock)
+                df = quant.add_bband(code=stock, startdate='today', dtype='W')
+
+                print(df)
+                rsi = quant.get_RSI(df=df)
+                macd = quant.get_MACD(df=df)
+                stoch = quant.get_stochastic(df=df)  
+
+                # 기본전략 시그널
+                candle = quant.check_candle(df=df)
+                bbcross = quant.check_bbcross(df=df)
+                for_bbcandle = quant.merge_all_df(df, candle, bbcross)
+                bbcandle = bbcandle_1(df=for_bbcandle)
+
+                # 보조지표 시그널
+                rsi = check_RSI(df=rsi)
+                macd = check_MACD(df=macd)    
+                stoch = check_STOCH(df=stoch)
+
+                df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
+                # print(df_for_trade)
+                # print(stock, df_for_trade.iloc[-1])
+                code_data[stock] = df_for_trade.iloc[-1]
+
+                time.sleep(8) # 시간 텀을 두었지만 효과가 없었음...
+
+        result = pd.DataFrame.from_dict(code_data)
+        result = result.T
+        result.index.names = ['stockcode']
+        return result
+        
 if __name__ == "__main__":  
     quant = Quant()  
     # df = quant.add_bband(code='000660', startdate='today')
