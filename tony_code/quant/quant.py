@@ -7,14 +7,15 @@ import mpl_finance
 import pandas as pd
 import talib as ta
 import time
+from strategy import *
 
 class Quant:
     """
-    # 로그: 2020.2.8시작, 2.18 수정
-    # 기능: 주가 데이터에 볼리져밴드 값을 추가
-    # 주요파라미터: code - 주가 코드, dtype - default(일봉), 주봉
-    # 리턴: 볼린저 밴드가 추가된 주가 데이터프레임    """
-    def add_bband(self, code, startdate, enddate=None, dtype='D', period=20, nbdevup=2, nbdevdn=2):
+    로그: 2020.2.8시작, 2.18 수정
+    기능: 주가 데이터에 볼리져밴드 값을 추가
+    주요파라미터: code - 주가 코드, dtype - default(일봉), 주봉
+    리턴: 볼린저 밴드가 추가된 주가 데이터프레임    """
+    def get_stock(self, code, startdate, enddate=None, dtype='D'):
         if startdate == 'today' and dtype == 'D':
             startdate = datetime.now() + timedelta(days=-30)
             startdate = startdate.strftime('%Y-%m-%d')
@@ -24,70 +25,73 @@ class Quant:
         elif startdate == 'today' and dtype == 'W':
             startdate = datetime.now() + relativedelta(months=-5)
             startdate = startdate.strftime('%Y-%m-%d')
-            # print(startdate)
-            # return
-
-        if dtype =='W' and enddate is None:
-            enddate = datetime.now().strftime("%Y-%m-%d")
-            startdate = startdate.replace('-',"")
-            enddate = enddate.replace('-',"")
-            df = self.jubong_data(code, startdate, enddate).rename(columns=lambda col: col.lower())
-
-        elif dtype == 'W' and enddate is not None:        
-            startdate = startdate.replace('-',"")
-            enddate = enddate.replace('-',"")
-            df = self.jubong_data(code, startdate, enddate).rename(columns=lambda col: col.lower())
 
         if dtype == 'D':
             df = fdr.DataReader(code, startdate, enddate).rename(columns=lambda col: col.lower())
 
-        # print(df)
-        ubb, mbb, lbb = ta.BBANDS(df['close'], period, nbdevup, nbdevdn)
+        elif dtype == 'W':
+            df = self.jubong_data(code, startdate, enddate).rename(columns=lambda col: col.lower())
+        
+        # # 볼린져 밴드 값 생성
+        # ubb, mbb, lbb = ta.BBANDS(df['close'], period, nbdevup, nbdevdn) 
 
-        df['ubb'] = ubb
-        df['mbb'] = mbb
-        df['lbb'] = lbb
+        # df['ubb'] = ubb
+        # df['mbb'] = mbb
+        # df['lbb'] = lbb
 
         return df
     '''
-    로그: 2020.2.8시작, 2020.03.18 수정
+    로그: 2020.2.8시작, 2020.03.19 수정
     기능: financedatereader에서 일봉데이터를 가져와서 주봉데이터에 맞게 변환
     리턴: 주봉 데이터프레임    '''
     def jubong_data(self, code, startdate, enddate):
-        df = fdr.DataReader(code, startdate, enddate)
-        # 주봉은 월요일을 기준으로 하므로 월요일기준으로 일 -> 주로 변환
-        week_mon = df.resample('W-MON').last() 
-        week_mon.reset_index(inplace=True)
-        # 주봉데이터에 close는 금요일값을 기준으로 하므로 금요일기준으로 변환
-        week_fri = df.resample('W-FRI').last()
+        fdr_df = fdr.DataReader(code, startdate, enddate)
+
+        week_mon = fdr_df.resample('W-MON').last()
+        week_mon.reset_index(inplace=True)        
+
+        week_fri = fdr_df.resample('W-FRI').last()
         week_fri.reset_index(inplace=True)
-        # 각각의 주의 최대값과 최소값을 찾음
-        week_max = df.resample('W').max()
+
+        week_max = fdr_df.resample('W').max()
         week_max.reset_index(inplace=True)
 
-        week_min = df.resample('W').min()
+        week_min = fdr_df.resample('W').min()
         week_min.reset_index(inplace=True)
-        # 주봉데이터프레임 생성
-        result = week_mon['Open'].to_frame()
-        result['High'] = week_max['High'].to_frame()
-        result['Low'] = week_min['Low'].to_frame()
-        result['Close'] = week_fri['Close'].to_frame()
-        result['Date'] = week_mon['Date'].to_frame()
-        result.set_index('Date', inplace=True)
-        # 현재가 있는 주는 open값을 제외한 값들은 계속 바뀌므로 금주를 기준으로 값을 채움
-        result.iloc[-1, 1] = df.iloc[-1]['High']
-        result.iloc[-1, 2] = df.iloc[-1]['Low']
-        result.iloc[-1, 3] = df.iloc[-1]['Close']
+
+        df = week_mon['Open'].to_frame()
+        df['High'] = week_max['High'].to_frame()
+        df['Low'] = week_min['Low'].to_frame()
+        df['Close'] = week_fri['Close'].to_frame()
+        df['Date'] = week_mon['Date'].to_frame()
+        df.set_index('Date', inplace=True)
+
+        df.iloc[-1, 1] = fdr_df.iloc[-1]['High']
+        df.iloc[-1, 2] = fdr_df.iloc[-1]['Low']
+        df.iloc[-1, 3] = fdr_df.iloc[-1]['Close']
+
+        # startdate가 2017년 이전인지 아닌지 확인해야함 startdate가 2017-10-09이전이면 2017-10-09에 대한 처리를 해야함
+        if datetime.strptime(startdate, '%Y-%m-%d').date() < datetime.strptime('2017-10-10', '%Y-%m-%d').date():
+            df.drop(df.index[df.index == '2017-10-02'], axis=0, inplace=True)
+            df.loc['2017-10-09', 'Open'] = fdr_df.loc['2017-10-10', 'Open']
+            df.reset_index(inplace=True)
+            df['Date'] = pd.to_datetime(df['Date'])
+            df.loc[df[df.Date == '2017-10-09'].index[0], 'Date'] = datetime.strptime('2017-10-10', '%Y-%m-%d')
+            df.set_index('Date',inplace=True)
         
-        # 2017-09-29 ~ 2017-10-09 까지의 데이터가 없기 때문에 하드코딩으로 주봉데이터에 맞게 값을 맞춰줌
-        # 2017-10-10 날짜에 주봉데이터를 생성함
-        df.drop(df.index[df.index == '2017-10-02'], axis=0, inplace=True)
-        df.loc['2017-10-09', 'Open'] = fdr.loc['2017-10-10', 'Open']
-        df.reset_index(inplace=True)
-        df['Date'] = pd.to_datetime(df['Date'])
-        df.loc[404,'Date'] = datetime.strptime('2017-10-10', '%Y-%m-%d')
-        df.set_index('Date',inplace=True)
-        return result
+        return df
+    '''
+    로그: 2020.3.19시작
+    기능: 주가데이터로부터 볼린져밴드 값을 구함
+    파라미터: 주가데이터프레임, 이동평균기간, 표준편차의 상향값, 표준편차의 하향값
+    리턴: 볼린져밴드 값을 저장한 데이터프레임    '''
+    def get_BBand(self, df, period=20, nbdevup=2, nbdevdn=2):
+        # 볼린져 밴드 값 생성
+        ubb, mbb, lbb = ta.BBANDS(df['close'], period, nbdevup, nbdevdn) 
+
+        bband_df = pd.DataFrame([ubb, mbb, lbb], columns=['ubb', 'mbb', 'lbb'])
+
+        return bband_df
     '''
     로그: 2020.2.8시작, 2.20 수정
     수정: type인자 삭제 - 매수 매도를 모두 구한후 이후 출력할 때 필터링하는 방식으로 변경
@@ -97,7 +101,6 @@ class Quant:
     def check_candle(self, df, up_pct=1.5, down_pct=0.5):       
         down_candle = df['open'] * (1 - down_pct * 0.01) >= df['close'] # 시가기준 종가가 x% 하락한 음봉을 체크
         # df_sell = df_sell[df_sell.check == True] # 데이터프레임에 음봉인 경우만 남김
-
         up_candle = df['open'] * (1 + up_pct * 0.01) <= df['close'] # 시가기준 종가가 x% 상승한 양봉을 체크
         # df_buy = df_buy[df_buy.check == True] # 데이터프레임에 양봉 경우만 남김
 
@@ -112,8 +115,7 @@ class Quant:
     리턴: 해당 인덱스(date)가 상향돌파인지 하향돌파인지 체크한 데이터프레임    '''
     def check_bbcross(self, df):
         up_cross = df['ubb'] <= df['high']
-        # df_up_cross.reset_index(inplace=True)
-        
+        # df_up_cross.reset_index(inplace=True)        
         down_cross = df['lbb'] >= df['low']
         # df_down_cross.reset_index(inplace=True)
 
@@ -220,44 +222,44 @@ class Quant:
     파라미터: 주식코드리스트, 가져올 기준시간(일봉 or 주봉)
     기능: 오늘기준으로 주식들의 시그널을 확인한다.
     리턴: 각각의 주식에대한 시그널    '''
-    def check_stock(stockmarket, dtype='D'):
+    def check_stock(self, stockmarket, dtype='D'):
         stocklist = fdr.StockListing(stockmarket)
         code_data = {} # 각 주식코드의 시그널을 담기위한 dictionary
         if dtype == 'D':
             for no, stock in enumerate(stocklist.Symbol):
-                df = quant.add_bband(code=stock, startdate='today')
+                df = self.add_bband(code=stock, startdate='today')
                 
-                rsi = quant.get_RSI(df=df)
-                macd = quant.get_MACD(df=df)
-                stoch = quant.get_stochastic(df=df)  
+                rsi = self.get_RSI(df=df)
+                macd = self.get_MACD(df=df)
+                stoch = self.get_stochastic(df=df)  
 
                 # 기본전략 시그널
-                candle = quant.check_candle(df=df)
-                bbcross = quant.check_bbcross(df=df)
-                for_bbcandle = quant.merge_all_df(df, candle, bbcross)
+                candle = self.check_candle(df=df)
+                bbcross = self.check_bbcross(df=df)
+                for_bbcandle = self.merge_all_df(df, candle, bbcross)
                 bbcandle = bbcandle_1(df=for_bbcandle)
 
                 rsi = check_RSI(df=rsi)
                 macd = check_MACD(df=macd)    
                 stoch = check_STOCH(df=stoch)
 
-                df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
+                df_for_trade = self.merge_all_df(bbcandle, rsi, macd, stoch)
                 code_data[stock] = df_for_trade.iloc[-1]
 
         elif dtype == 'W': # 한번 조회밖에 안됨...
             for no, stock in enumerate(stocklist.Symbol):
-                print(stock)
-                df = quant.add_bband(code=stock, startdate='today', dtype='W')
+                # print(stock)
+                df = self.add_bband(code=stock, startdate='today', dtype='W')
 
-                print(df)
-                rsi = quant.get_RSI(df=df)
-                macd = quant.get_MACD(df=df)
-                stoch = quant.get_stochastic(df=df)  
+                # print(df)
+                rsi = self.get_RSI(df=df)
+                macd = self.get_MACD(df=df)
+                stoch = self.get_stochastic(df=df)  
 
                 # 기본전략 시그널
-                candle = quant.check_candle(df=df)
-                bbcross = quant.check_bbcross(df=df)
-                for_bbcandle = quant.merge_all_df(df, candle, bbcross)
+                candle = self.check_candle(df=df)
+                bbcross = self.check_bbcross(df=df)
+                for_bbcandle = self.merge_all_df(df, candle, bbcross)
                 bbcandle = bbcandle_1(df=for_bbcandle)
 
                 # 보조지표 시그널
@@ -265,23 +267,35 @@ class Quant:
                 macd = check_MACD(df=macd)    
                 stoch = check_STOCH(df=stoch)
 
-                df_for_trade = quant.merge_all_df(bbcandle, rsi, macd, stoch)
+                df_for_trade = self.merge_all_df(bbcandle, rsi, macd, stoch)
                 # print(df_for_trade)
                 # print(stock, df_for_trade.iloc[-1])
                 code_data[stock] = df_for_trade.iloc[-1]
-
-                time.sleep(8) # 시간 텀을 두었지만 효과가 없었음...
 
         result = pd.DataFrame.from_dict(code_data)
         result = result.T
         result.index.names = ['stockcode']
         return result
+    '''     
+    로그: 2020.03.11 시작
+    파라미터: 주식코드리스트, 전략, 기준시간(일봉 or 주봉)
+    기능: 오늘기준으로 전략에 해당하는 주식 추출하기
+    리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
+    def find_stock(self, stockmarket, strategy=None, dtype='D'):
+        df = self.check_stock(stockmarket, dtype=dtype)
+        result = make_trade_point(df, strategy)
+
+        return result
         
 if __name__ == "__main__":  
     quant = Quant()  
+    df = quant.get_stock('138930', '2010-01-01', dtype='W')
+    print(df.loc['2017-09-20':])
+
+    # df = quant.check_stock(stockmarket='KOSPI', dtype='W')
+    # print(df)
+    
     # df = quant.add_bband(code='000660', startdate='today')
-    df = quant.add_bband('041960',startdate='2010-01-01', dtype='W')
-    df.to_csv('test_코미팜.csv')
 
     # df = quant.add_bband(code='005930', startdate='2018-01-01', enddate='2019-01-01')
 
