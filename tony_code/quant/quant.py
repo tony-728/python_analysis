@@ -31,13 +31,6 @@ class Quant:
 
         elif dtype == 'W':
             df = self.jubong_data(code, startdate, enddate).rename(columns=lambda col: col.lower())
-        
-        # # 볼린져 밴드 값 생성
-        # ubb, mbb, lbb = ta.BBANDS(df['close'], period, nbdevup, nbdevdn) 
-
-        # df['ubb'] = ubb
-        # df['mbb'] = mbb
-        # df['lbb'] = lbb
 
         return df
     '''
@@ -46,18 +39,28 @@ class Quant:
     리턴: 주봉 데이터프레임    '''
     def jubong_data(self, code, startdate, enddate):
         fdr_df = fdr.DataReader(code, startdate, enddate)
+        # resample를 위해 시작일을 월요일로 맞춰주기 위함
+        day_index = fdr_df.index[0]; day = fdr_df.index[0].weekday() 
+        if not day == 0: # 월요일이 아닌 날일 때
+            if day == 1: # 화
+                day_index = (day_index + timedelta(days=7-day))                
+            elif day == 2: # 수
+                day_index = (day_index + timedelta(days=7-day))                
+            elif day == 3: # 목
+                day_index = (day_index + timedelta(days=7-day))                
+            elif day == 4: # 금
+                day_index = (day_index + timedelta(days=7-day))                
+            elif day == 5: # 토
+                day_index = (day_index + timedelta(days=7-day))
+            elif day == 6: # 일
+                day_index = (day_index + timedelta(days=7-day))
 
-        week_mon = fdr_df.resample('W-MON').last()
-        week_mon.reset_index(inplace=True)        
-
-        week_fri = fdr_df.resample('W-FRI').last()
-        week_fri.reset_index(inplace=True)
-
-        week_max = fdr_df.resample('W').max()
-        week_max.reset_index(inplace=True)
-
-        week_min = fdr_df.resample('W').min()
-        week_min.reset_index(inplace=True)
+        fdr_df = fdr_df[day_index:] # time series 시작을 월요일로 통일함
+        # 주봉데이터프레임의 각 컬럼들을 구성하기 위해 필요한 데이터프레임 생성
+        week_mon = fdr_df.resample('W-MON').last().reset_index()       
+        week_fri = fdr_df.resample('W-FRI').last().reset_index()
+        week_max = fdr_df.resample('W').max().reset_index()
+        week_min = fdr_df.resample('W').min().reset_index()
 
         df = week_mon['Open'].to_frame()
         df['High'] = week_max['High'].to_frame()
@@ -66,30 +69,37 @@ class Quant:
         df['Date'] = week_mon['Date'].to_frame()
         df.set_index('Date', inplace=True)
 
-        df.iloc[-1, 1] = fdr_df.iloc[-1]['High']
-        df.iloc[-1, 2] = fdr_df.iloc[-1]['Low']
-        df.iloc[-1, 3] = fdr_df.iloc[-1]['Close']
+        # # 금주의 high, low, close 값은 달라지므로 변경해줌
+        # df.iloc[-1, 1] = fdr_df.iloc[-1]['High']
+        # df.iloc[-1, 2] = fdr_df.iloc[-1]['Low']
+        # df.iloc[-1, 3] = fdr_df.iloc[-1]['Close']
 
         # startdate가 2017년 이전인지 아닌지 확인해야함 startdate가 2017-10-09이전이면 2017-10-09에 대한 처리를 해야함
         if datetime.strptime(startdate, '%Y-%m-%d').date() < datetime.strptime('2017-10-10', '%Y-%m-%d').date():
             df.drop(df.index[df.index == '2017-10-02'], axis=0, inplace=True)
             df.loc['2017-10-09', 'Open'] = fdr_df.loc['2017-10-10', 'Open']
-            df.reset_index(inplace=True)
-            df['Date'] = pd.to_datetime(df['Date'])
-            df.loc[df[df.Date == '2017-10-09'].index[0], 'Date'] = datetime.strptime('2017-10-10', '%Y-%m-%d')
+            df.reset_index(inplace=True);  df['Date'] = pd.to_datetime(df['Date']) # 데이터프레임의 날짜형식을 변환하기 위함
+            df.loc[df[df.Date == '2017-10-09'].index[0], 'Date'] = datetime.strptime('2017-10-10', '%Y-%m-%d') # 날짜를 변경 9일 -> 10일
             df.set_index('Date',inplace=True)
-        
+
+        # dateframe에 마지막 컬럼의resample하는 날짜가 금주를 넘어가기 때문에 삭제함
+        df.drop(df.index[-1], inplace=True) 
         return df
     '''
     로그: 2020.3.19시작
-    기능: 주가데이터로부터 볼린져밴드 값을 구함
-    파라미터: 주가데이터프레임, 이동평균기간, 표준편차의 상향값, 표준편차의 하향값
-    리턴: 볼린져밴드 값을 저장한 데이터프레임    '''
-    def get_BBand(self, df, period=20, nbdevup=2, nbdevdn=2):
+    기능: 주가데이터로부터 볼린져밴드 값과 볼린져 밴드기반에 전략(기본전략)에 필요한 시그널을 구함
+    파라미터: 주가데이터프레임, 이동평균기간, 표준편차의 상향값, 표준편차의 하향값, 캔들 상승비율, 캔들 하락비율
+    리턴: 볼린져밴드 값+기본전략 시그널을 저장한 데이터프레임    '''
+    def get_BBand(self, df, period=20, nbdevup=2, nbdevdn=2, up_pct=1.5, down_pct=0.5):
         # 볼린져 밴드 값 생성
         ubb, mbb, lbb = ta.BBANDS(df['close'], period, nbdevup, nbdevdn) 
+        # bband_df = pd.DataFrame(data={'ubb':ubb, 'mbb':mbb, 'lbb':lbb})
+        df['ubb'] = ubb; df['mbb'] = mbb; df['lbb'] = lbb
 
-        bband_df = pd.DataFrame([ubb, mbb, lbb], columns=['ubb', 'mbb', 'lbb'])
+        check_candle = self.check_candle(df, up_pct=up_pct, down_pct=down_pct)
+        check_bbcross = self.check_bbcross(df)
+
+        bband_df = self.merge_all_df(df, check_candle, check_bbcross)
 
         return bband_df
     '''
@@ -190,20 +200,19 @@ class Quant:
         plt.grid()
         plt.show()
     '''
-    로그: 2020.02.16 시작 2020.02.24 수정
-    파라미터: 일봉주가 데이터프레임, 주봉주가 데이터프레임으로 구한 매수, 매도 시그널데이터프레임
-    기능: 주봉주가 데이터프레임으로 구한 매수, 매도 시그널을 백테스팅을 위해 일봉데이터프레임 인덱스로 변환
-    리턴: 일봉주가데이터프레임에 주봉주가데이터로 구한 매수, 매도 시그널이 추가된 데이터프레임    '''
-    def merge_for_backtest(self, df_D, sell_point_df, buy_point_df, dtype='D'):    
-        if dtype == 'W': # 일봉 데이터 인덱스에 주봉 매수매도 신호 합치기
-            sell_point_df['Date'] = pd.to_datetime(sell_point_df['Date'])
-            buy_point_df['Date'] = pd.to_datetime(buy_point_df['Date'])
-            
-            df_D.reset_index(inplace=True)
-            df_D = pd.merge(df_D, sell_point_df, how='outer')
-            df_D = pd.merge(df_D, buy_point_df, how='outer')
+    로그: 2020.02.16 시작 2020.03.20 수정
+    파라미터: 거래시그널 데이터프레임, 주가정보 데이터프레임, 시간 타입(일, 주)
+    기능: 백테스팅과 캔들그래프를 함께 그리기 위해서 거래시그널과 주가정보를 하나의 데이터프레임으로 만들고 
+        또한 주봉의 경우 time series를 일봉의 time series로 변환한다.
+    리턴: 거래시그널과 주가정보가 통합된 데이터프레임    '''
+    def backtest_for_week(self, code, startdate, enddate, signal_df):    
+        # 일봉 데이터 인덱스에 주봉 매수매도 신호 합치기       
+        fdr_df = fdr.DataReader(code, startdate, enddate).reset_index()
+        signal_df.reset_index(inplace=True)
 
-        return df_D
+        result = pd.merge(fdr_df, signal_df, how='left').fillna(value=False).set_index('Date')
+
+        return result
     '''
     로그: 2020.02.20 시작
     파라미터: 주가데이터와 모든 보조지표데이터프레임
@@ -227,18 +236,17 @@ class Quant:
         code_data = {} # 각 주식코드의 시그널을 담기위한 dictionary
         if dtype == 'D':
             for no, stock in enumerate(stocklist.Symbol):
-                df = self.add_bband(code=stock, startdate='today')
+                df = self.get_stock(code=stock, startdate='today')
                 
+                bband = self.get_BBand(df=df)
                 rsi = self.get_RSI(df=df)
                 macd = self.get_MACD(df=df)
                 stoch = self.get_stochastic(df=df)  
 
                 # 기본전략 시그널
-                candle = self.check_candle(df=df)
-                bbcross = self.check_bbcross(df=df)
-                for_bbcandle = self.merge_all_df(df, candle, bbcross)
-                bbcandle = bbcandle_1(df=for_bbcandle)
+                bbcandle = check_bbcandle(df=bband)
 
+                # 보조지표 시그널
                 rsi = check_RSI(df=rsi)
                 macd = check_MACD(df=macd)    
                 stoch = check_STOCH(df=stoch)
@@ -246,22 +254,17 @@ class Quant:
                 df_for_trade = self.merge_all_df(bbcandle, rsi, macd, stoch)
                 code_data[stock] = df_for_trade.iloc[-1]
 
-        elif dtype == 'W': # 한번 조회밖에 안됨...
+        elif dtype == 'W':
             for no, stock in enumerate(stocklist.Symbol):
-                # print(stock)
-                df = self.add_bband(code=stock, startdate='today', dtype='W')
+                df = self.get_stock(code=stock, startdate='today', dtype='W')
 
-                # print(df)
+                bband = self.get_BBand(df=df)
                 rsi = self.get_RSI(df=df)
                 macd = self.get_MACD(df=df)
                 stoch = self.get_stochastic(df=df)  
 
                 # 기본전략 시그널
-                candle = self.check_candle(df=df)
-                bbcross = self.check_bbcross(df=df)
-                for_bbcandle = self.merge_all_df(df, candle, bbcross)
-                bbcandle = bbcandle_1(df=for_bbcandle)
-
+                bbcandle = check_bbcandle(df=bband)
                 # 보조지표 시그널
                 rsi = check_RSI(df=rsi)
                 macd = check_MACD(df=macd)    
@@ -289,13 +292,14 @@ class Quant:
         
 if __name__ == "__main__":  
     quant = Quant()  
-    df = quant.get_stock('138930', '2010-01-01', dtype='W')
-    print(df.loc['2017-09-20':])
+    df = quant.get_stock('000660', '2010-01-01', dtype='W')
+    print(df.loc['2017-10-01':]) 
 
     # df = quant.check_stock(stockmarket='KOSPI', dtype='W')
     # print(df)
     
-    # df = quant.add_bband(code='000660', startdate='today')
+    # bband = quant.get_BBand(df=df)
+    # print(bband)
 
     # df = quant.add_bband(code='005930', startdate='2018-01-01', enddate='2019-01-01')
 

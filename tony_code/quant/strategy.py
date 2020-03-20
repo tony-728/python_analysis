@@ -5,7 +5,7 @@ from quant import *
 기능: 기본전략(볼린져 밴드)을 이용하여 매수, 매도 타이밍 체크
 리턴 매수, 매도 시점을 저장한 데이터프레임을 리턴
 '''
-def bbcandle_1(df, period=2): 
+def check_bbcandle(df, period=2): 
     df.reset_index(inplace=True)
     # sell_check
     sindex_list = df[df.down_candle == True].index # for문에 사용할 범위를 생성
@@ -77,8 +77,7 @@ def bbcandle_1(df, period=2):
             for i in range(bindex_list[j] - period, bindex_list[j] + 1): # 정해진 기간내에서 하향돌파를 발생했는지 확인, 자신포함
                 if df.loc[i, 'down_cross']: # 하향돌파한 경우
                     cross_signal = True # 매수 신호 발생
-                    cross_point = i # 돌파한 시점의 인덱스
-                    
+                    cross_point = i # 돌파한 시점의 인덱스                    
                     ''' 현재 시점 바로 이전에 돌파가 발생한 경우에 시그널을 주게 되면 첫번째 음봉체크가 불분명해진다.'''
                     if bindex_list[j] - cross_point == 0: # 현재시점 캔들에서 돌파가 발생하면 매도시그널 & 과거에도 같은 경우가 있는지 확인해야한다.
                         # buy_point에 저장된 값이 있는지 확인한다.
@@ -91,7 +90,6 @@ def bbcandle_1(df, period=2):
 
                         if not candle_signal: # 한 번이라도 False가 나오면 매수신호에 맞지 않는다.
                             break
-
                     else:
                         for k in range(cross_point, bindex_list[j]): # 돌파한 인덱스와 현재캔들 인덱스 사이에 양봉이 있는지 확인
                             if k in bindex_list: # 사이에 값이 양봉이 있는지 확인
@@ -393,21 +391,9 @@ def tech_indicator_df(df, tech_indicator):
     
     result.drop(columns=['bbcandle_buy', 'bbcandle_sell'], inplace=True)
     return result
-'''     
-로그: 2020.03.11 시작
-파라미터: 주식코드리스트, 전략, 기준시간(일봉 or 주봉)
-기능: 오늘기준으로 전략에 해당하는 주식 추출하기
-리턴: 데이터프레임에 실제 매수매도 시그널을 생성    '''
-def find_stock(stockmarket, strategy=None, dtype='D'):
-    df = check_stock(stockmarket, dtype=dtype)
-    result = make_trade_point(df, strategy)
-
-    return result
 
 if __name__ == "__main__":
-    # df = check_stock(stockmarket='KOSPI')
-    # print(df)
     quant = Quant()
 
-    df2 = find_stock(stockmarket='KOSPI', strategy=['rsi'])
+    df2 = quant.find_stock(stockmarket='KOSPI', strategy=['rsi'])
     df2.to_csv('test.csv')
