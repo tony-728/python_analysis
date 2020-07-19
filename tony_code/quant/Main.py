@@ -11,11 +11,12 @@ if __name__ == "__main__":
     strategy = Strategy()
 
     # 주가 정보 얻어오기
-    df = gathering.get_stock(code='000660', startdate='2010-01-01', enddate='2019-12-30', dtype='D')
+    df = gathering.get_stock(code='KS11', startdate='2010-01-01', enddate='2019-12-30', dtype='D')
     print(df)
+    # df.to_csv('KS11.csv')
 #%%
     # 기술적지표 생성, 볼린져 밴드 값
-    bband_df = techIndi.get_BBand(df=df, period=20, nbdevup=2, nbdevdn=2, up_pct=1.5, down_pct=0.5)
+    bband_df = techIndi.get_BBand(df=df, period=10, nbdevup=4, nbdevdn=2, up_pct=2.0, down_pct=0.5)
     print(bband_df)
 #%%
     # 기술적지표 생성, RSI 값
@@ -33,6 +34,7 @@ if __name__ == "__main__":
     # 위에서 생성한 기술적 지표를 하나의 df로 병합
     techindi_df = gathering.merge_all_df(bband_df, rsi_df, macd_df, stoch_df)
     print(techindi_df)
+    
 #%%
     # 조건에 맞는 지표를 거래 신호를 생성, 볼린져 밴드값을 이용하여 거래 신호 생성
     check_bband = signal.check_bbcandle(bband_df, period=2) # 현재포함 과거 2일을 확인
@@ -53,6 +55,7 @@ if __name__ == "__main__":
     # 위에서 생성한 거래 신호를 하나의 df로 병합
     signal_df = gathering.merge_all_df(check_bband, check_macd, check_rsi, check_stoch)
     print(signal_df)
+    
 #%%
     # 현재 시점에 모든 코스피 정보의 거래 시그널 생성 
     kospi = signal.check_stock(stockmarket=None, item_list=['000660', '005930'], check_date='today', dtype='D')
@@ -60,8 +63,14 @@ if __name__ == "__main__":
 #%%
     # 위에서 생성한 거래 신호를 조합하여 최종 거래 신호를 생성
     # 옵션으로 원하는 지표를 주거나 몇가지의 지표(인자로 준 지표의 개수만 만족하면 됨)를 조합할 것인지 결정
-    trade_point = strategy.make_trade_point(signal_df, tech_indicator=['rsi'], indi_count=None)
+    trade_point = strategy.make_trade_point(signal_df, tech_indicator=['bbcandle', 'rsi'], indi_count=None)
     print(trade_point)
+
+#%%
+    all_df = gathering.merge_all_df(bband_df, trade_point)
+    print(all_df)
+
+    gathering.make_graph(all_df)
 #%%
     # 볼린져 밴드를 기준으로 원하는 전략을 마켓이나 원하는 주가코드에 대해서 원하는 시점에
     # 거래 시그널을 확인할 수 있다.
