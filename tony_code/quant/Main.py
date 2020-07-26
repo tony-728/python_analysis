@@ -16,7 +16,7 @@ if __name__ == "__main__":
     # df.to_csv('KS11.csv')
 #%%
     # 기술적지표 생성, 볼린져 밴드 값
-    bband_df = techIndi.get_BBand(df=df, period=10, nbdevup=4, nbdevdn=2, up_pct=2.0, down_pct=0.5)
+    bband_df = techIndi.get_BBand(df=df, period=10, nbdevup=2, nbdevdn=2, up_pct=2.0, down_pct=0.5)
     print(bband_df)
 #%%
     # 기술적지표 생성, RSI 값
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # 위에서 생성한 기술적 지표를 하나의 df로 병합
     techindi_df = gathering.merge_all_df(bband_df, rsi_df, macd_df, stoch_df)
     print(techindi_df)
-    
+    techindi_df.to_csv('tech_df.csv')
 #%%
     # 조건에 맞는 지표를 거래 신호를 생성, 볼린져 밴드값을 이용하여 거래 신호 생성
     check_bband = signal.check_bbcandle(bband_df, period=2) # 현재포함 과거 2일을 확인
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # 위에서 생성한 거래 신호를 하나의 df로 병합
     signal_df = gathering.merge_all_df(check_bband, check_macd, check_rsi, check_stoch)
     print(signal_df)
-    
+    signal_df.to_csv('sig_df.csv')
 #%%
     # 현재 시점에 모든 코스피 정보의 거래 시그널 생성 
     kospi = signal.check_stock(stockmarket=None, item_list=['000660', '005930'], check_date='today', dtype='D')

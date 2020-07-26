@@ -128,6 +128,7 @@ class Signal:
         result = pd.concat([bbcandle_buy, bbcandle_sell], axis='columns', join='outer')
         result.fillna(value=False, inplace=True)
         return result
+
     '''
     로그: 2020.02.20 시작
     파라미터: RIS지표데이터프레임, RSI을 판단할 percentage
@@ -142,6 +143,7 @@ class Signal:
 
         result = pd.concat([rsi_buy_df, rsi_sell_df], axis='columns')
         return result
+
     '''
     로그: 2020.02.20 시작 2020.03.03 수정
     파라미터: MACD 주가데이터프레임
@@ -158,18 +160,40 @@ class Signal:
         down_trend_df.set_index('Date', inplace=True)
 
         return down_trend_df
+
     '''
-    로그: 2020.02.20 시작 2020.02.24 수정
+    로그: 2020.02.20 시작 2020.07.22 수정(함수 split)
     파라미터: stochastic 주가데이터와 stochastic 판단 percentage
     기능: stochastic 지표를 갖고 매수 매도 판단 시그널을 만든다.
     리턴: 데이터프레임에 매수매도 판단 시그널을 생성    '''
-    def check_STOCH(self, df, up_pct=80, down_pct=20):
+    def check_STOCH(self, df, up_pct=80, down_pct=20, case=1):
+        gathering = Gathering()
+        case_len = len(case)
+
+        #case의 길이가 1이라는 것은 하나의 case만 사용한다.
+        if case_len == 1:
+            '''case가 1인지 2인지 확인한다.'''
+            x = case[0] # x는 case의 번호가 저장
+            if x == 1:
+                df = self.check_STOCH_CASE1(df=df , up_pct=up_pct, down_pct=down_pct)
+            elif x == 2:
+                df = self.check_STOCH_CASE2(df=df, up_pct=up_pct, down_pct=down_pct)
+
+        #case의 길이가 2라는 것은 2가지의 case를 사용하겠다.
+        elif case_len == 2:
+            '''case1의 결과와 case2의 결과를 받아서 합친다.'''
+            df1 = self.check_STOCH_CASE1(df=df , up_pct=up_pct, down_pct=down_pct)
+            df2 = self.check_STOCH_CASE2(df=df, up_pct=up_pct, down_pct=down_pct)
+            df = gathering.merge_all_df(df1, df2)
+
+        return df
+
+
+    def check_STOCH_CASE1(self, df, up_pct=80, down_pct=20):
         df.reset_index(inplace=True)
-        '''case 1: 
-            slow_K가 20 이하이면 과매도구간 slow_K가 20을 상향돌파하면 매수
-            slow_K가 80 이상이면 과매수구간 slow_K가 80을 하향돌파하면 매도 '''
         stoch_under_down = df.slow_K <= down_pct
-        stoch_buy1 = {}  
+        stoch_buy1 = {}
+
         for i in stoch_under_down[stoch_under_down.values == True].index:
             if df.loc[i-1, 'slow_K'] < down_pct and df.loc[i, 'slow_K'] > down_pct:
                 # print('20아래', df.loc[i, 'Date'], df.loc[i, 'slow_K'])
@@ -181,18 +205,30 @@ class Signal:
 
         stoch_over_up = df.slow_K >= up_pct
         stoch_sell1 = {}
+
         for i in stoch_over_up[stoch_over_up.values == True].index:
             if df.loc[i-1, 'slow_K'] > up_pct and df.loc[i, 'slow_K'] < up_pct:
                 # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'])
                 # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'])
                 stoch_sell1[df.loc[i, 'Date']] = True # 매도신호
+
         stoch_sell1_df = pd.DataFrame(stoch_sell1.items(), columns=['Date', 'stoch_1_sell'])
         stoch_sell1_df.set_index('Date', inplace=True)
 
-        '''case 2: 
-            slow_K <= 20이고 slow_K가 slow_D를 상향돌파 하면 매수
-            slow_K >= 80이고 slow_K가 slow_D를 하향돌파 하면서 매도 '''
+        result_case1_df = pd.concat([stoch_buy1_df, stoch_sell1_df], axis='columns', join='outer')
+        result_case1_df.fillna(value=False, inplace=True)
+
+        return result_case1_df
+
+    '''case 2: 
+        slow_K <= 20이고 slow_K가 slow_D를 상향돌파 하면 매수
+        slow_K >= 80이고 slow_K가 slow_D를 하향돌파 하면서 매도 '''
+
+    def check_STOCH_CASE2(self, df, up_pct=80, down_pct=20):
+        df.reset_index(inplace=True)
+        stoch_under_down = df.slow_K <= down_pct
         stoch_buy2 = {}
+
         for i in stoch_under_down[stoch_under_down.values == True].index:
             if df.loc[i-1, 'slow_K'] < df.loc[i-1, 'slow_D'] and df.loc[i, 'slow_K'] > df.loc[i, 'slow_D']:
                 # print('20아래', df.loc[i-1, 'Date'], df.loc[i-1, 'slow_K'], df.loc[i-1, 'slow_D'])
@@ -202,26 +238,35 @@ class Signal:
         stoch_buy2_df = pd.DataFrame(stoch_buy2.items(), columns=['Date', 'stoch_2_buy'])
         stoch_buy2_df.set_index('Date', inplace=True)
 
+        stoch_over_up = df.slow_K >= up_pct
         stoch_sell2 = {}
+
         for i in stoch_over_up[stoch_over_up.values == True].index:
             if df.loc[i-1, 'slow_K'] > df.loc[i-1, 'slow_D'] and df.loc[i, 'slow_K'] < df.loc[i, 'slow_D']:
                 # print('80이상', df.loc[i,'Date'], df.loc[i, 'slow_K'], df.loc[i, 'slow_D'])
                 # print('하향돌파', df.loc[i+1, 'Date'], df.loc[i+1, 'slow_K'], df.loc[i+1, 'slow_D'])
                 stoch_sell2[df.loc[i, 'Date']] = True
+
         stoch_sell2_df = pd.DataFrame(stoch_sell2.items(), columns=['Date', 'stoch_2_sell'])
         stoch_sell2_df.set_index('Date', inplace=True)
 
-        result = pd.concat([stoch_buy1_df, stoch_sell1_df, stoch_buy2_df, stoch_sell2_df], axis='columns', join='outer')
-        result.fillna(value=False, inplace=True)
+        result_case2_df = pd.concat([stoch_buy2_df, stoch_sell2_df], axis='columns', join='outer')
+        result_case2_df.fillna(value=False, inplace=True)
 
-        ''' case 1, 2의 결과가 좋지 않으면 case 3, 4번도 추가예정
-        case 3: 
-        df['close']는 저점을 갱신하면서 하락 slow_K는 전저점을 갱신하지 못한경우 -> 매수
-        df['close']는 고점을 갱신하면서 상승 slow_K는 전고점을 갱신하지 못한경우 -> 매도
-        case 4: 
-        slow_K >= 50 and slow_D >= 50 -> 매수
-        slow_K <= 50 and slow_D <= 50 -> 매도        '''
-        return result
+        return result_case2_df
+
+        # result = pd.concat([stoch_buy1_df, stoch_sell1_df, stoch_buy2_df, stoch_sell2_df], axis='columns', join='outer')
+        # result.fillna(value=False, inplace=True)
+
+    ''' case 1, 2의 결과가 좋지 않으면 case 3, 4번도 추가예정
+    case 3: 
+    df['close']는 저점을 갱신하면서 하락 slow_K는 전저점을 갱신하지 못한경우 -> 매수
+    df['close']는 고점을 갱신하면서 상승 slow_K는 전고점을 갱신하지 못한경우 -> 매도
+    case 4: 
+    slow_K >= 50 and slow_D >= 50 -> 매수
+    slow_K <= 50 and slow_D <= 50 -> 매도        '''
+
+
     '''     
     로그: 2020.03.09 시작 2020.03.26 수정
     파라미터: 주식마켓 또는 stockcodelist, 확인할 시간, 가져올 기준시간(일봉 or 주봉)
